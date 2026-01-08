@@ -1,0 +1,7 @@
+baseURL = 'https://joeyaxtell.com/'
+languageCode = 'en-us'
+title = 'Homelab Adventures!'
+theme = 'ananke'
+[caches]
+  [caches.images]
+    dir = ':cacheDir/images'
