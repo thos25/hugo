@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on Joey's Site</title><link>https://www.joeyaxtell.com/post/</link><description>Recent content in Posts on Joey's Site</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 07 Jan 2026 22:09:17 -0600</lastBuildDate><atom:link href="https://www.joeyaxtell.com/post/index.xml" rel="self" type="application/rss+xml"/><item><title>Homelab Kubernetes Adventure</title><link>https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/</link><pubDate>Wed, 07 Jan 2026 22:09:17 -0600</pubDate><guid>https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/</guid><description>&lt;img src="https://www.ovhcloud.com/sites/default/files/styles/text_media_horizontal/public/2021-04/K8S-logo.png" alt="Featured image of post Homelab Kubernetes Adventure" /&gt;&lt;h1 id="homelab"&gt;Homelab
+&lt;/h1&gt;&lt;h2 id="intro"&gt;Intro
+&lt;/h2&gt;&lt;p&gt;This is the first of a multi-post series detailing my adventure in Kubernetes. I will go over what hardware i selected, what Kubernetes deployment method i chose, my first deployments, converting my docker compose manifests into Kubernetes manifests, storage, backups, GitOps with ArgoCD, and much more.&lt;/p&gt;
+&lt;p&gt;This is my first time diving into Kubernetes, and the learning curve was high. But i&amp;rsquo;ve learned a lot and i hope that by documenting what i went through, it&amp;rsquo;ll help you on your journey to better understanding Kubernetes.&lt;/p&gt;
+&lt;h1 id="problem-statement"&gt;Problem Statement
+&lt;/h1&gt;&lt;p&gt;&lt;img src="https://en.meming.world/images/en/thumb/4/4a/Modern_Problems_Require_Modern_Solutions.jpg/300px-Modern_Problems_Require_Modern_Solutions.jpg"
+loading="lazy"
+alt="Modern Problems"
+&gt;&lt;/p&gt;
+&lt;p&gt;My homelab situation was not great. Here was the state of my environment, and why it needed to change:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Outdated single-server hardware (limited resources, aging)&lt;/li&gt;
+&lt;li&gt;Single point of failure — no redundancy or HA&lt;/li&gt;
+&lt;li&gt;Services scattered in Docker Compose stacks, no orchestration&lt;/li&gt;
+&lt;li&gt;No consistent persistent storage or volume strategy&lt;/li&gt;
+&lt;li&gt;No automated backups or recovery plan&lt;/li&gt;
+&lt;li&gt;Manual deployments, manual updating, leading to drift and falling behind&lt;/li&gt;
+&lt;li&gt;No centralized monitoring, logging, or alerting&lt;/li&gt;
+&lt;li&gt;Network complexity exposing services locally&lt;/li&gt;
+&lt;li&gt;Limited capacity for scaling or resource isolation&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This is essentially the topology of my homelab before Kubernetes:
+&lt;img src="https://www.joeyaxtell.com/homelab_before.png"
+loading="lazy"
+alt="Sad Homelab"
+&gt;&lt;/p&gt;
+&lt;p&gt;As you can tell, single server homelabs have their limitations. When that single server goes down, everything goes down with it. My services were running in Docker Compose stacks, which worked fine for a while, but as I added more services, managing and updating them became a nightmare. There was no orchestration, so if a container crashed, it stayed down until I manually intervened.&lt;/p&gt;
+&lt;p&gt;I did, luckily, have my manifests in source control, but that&amp;rsquo;s about where the &lt;code&gt;pro's&lt;/code&gt; end.&lt;/p&gt;
+&lt;h1 id="solution"&gt;Solution
+&lt;/h1&gt;&lt;p&gt;I improved my homelab by deploying Kubernetes: I purchased multiple hosts and built a cluster while learning core Kubernetes concepts and operations. The goal was to run my containerized apps on a resilient platform that provides orchestration, automated failover, rolling updates, scaling, and centralized management.&lt;/p&gt;
+&lt;p&gt;This is what the intended solution should look like:
+&lt;img src="https://www.joeyaxtell.com/homelab_after.png"
+loading="lazy"
+alt="Happy Homelab"
+&gt;&lt;/p&gt;
+&lt;p&gt;This solution addresses the problems I faced:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Redundancy and High Availability&lt;/strong&gt;: Multiple nodes ensure services remain available even if one node fails.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Orchestration&lt;/strong&gt;: Kubernetes manages container deployment, scaling, and recovery automatically.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Consistent Storage&lt;/strong&gt;: Implementing persistent volumes for reliable data storage.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Automated Backups&lt;/strong&gt;: Scheduled backups to protect against data loss.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;GitOps&lt;/strong&gt;: Using ArgoCD for declarative, version-controlled deployments.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Centralized Monitoring&lt;/strong&gt;: Tools like Prometheus and Grafana for insights into system health&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id="more-to-come"&gt;More to come
+&lt;/h1&gt;&lt;p&gt;I am going to break up this series into multiple posts so that it&amp;rsquo;s easy to follow, so stay tuned for more!&lt;/p&gt;</description></item></channel></rss>
