@@ -24,6 +24,8 @@ This is the first of a multi-post series detailing my adventure in Kubernetes.  
 
 This is my first time diving into Kubernetes, and the learning curve was high.  But i've learned a lot and i hope that by documenting what i went through, it'll help you on your journey to better understanding Kubernetes.  
 
-# W
+# Problem
+
+
 
 visit [Hugo](https://gohugo.io) website!

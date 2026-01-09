@@ -1,6 +1,6 @@
-baseURL = 'https://joeyaxtell.com/'
+baseURL = 'https://www.joeyaxtell.com/'
 languageCode = 'en-us'
-title = 'Homelab Adventures!'
+title = 'Joey's Site'
 theme = 'ananke'
 [caches]
   [caches.images]
