@@ -52,7 +52,7 @@ Early on I wanted ArgoCD's AppProject concept to segment my workloads: media app
 # If I had my deployments in separate repos, then I'd create new projects for each.
 ```
 
-All of my workload manifests live in one repo (`homelab-kubernetes`), so a project boundary drawn around "one repo" doesn't actually separate anything. That AppProject was never applied — every Application in the cluster still runs under the `default` project. Splitting workloads into separate repos per concern is the real fix, and it's a bigger reorganization than I've wanted to take on yet. I'm leaving the dead end in here because "I tried this and the docs made it sound simpler than it turned out to be" is worth writing down, rather than pretending the idea worked the first time.
+All of my workload manifests live in one repo, so a project boundary drawn around "one repo" doesn't actually separate anything. That AppProject was never applied — every Application in the cluster still runs under the `default` project. Splitting workloads into separate repos per concern is the real fix, and it's a bigger reorganization than I've wanted to take on yet. I'm leaving the dead end in here because "I tried this and the docs made it sound simpler than it turned out to be" is worth writing down, rather than pretending the idea worked the first time.
 
 ## What's built but not live: image automation
 
