@@ -66,7 +66,7 @@ The pattern I landed on is the classic app-of-apps: one root Application watches
 ```yaml
 spec:
   source:
-    repoURL: https://github.com/thos25/argo-cd.git
+    repoURL: https://github.com/path-to-my-argo-cd-repo.git
     path: apps/
     targetRevision: HEAD
   syncPolicy:
@@ -81,7 +81,7 @@ Add a workload, add one small Application file describing where its manifests li
 ```yaml
 spec:
   source:
-    repoURL: https://github.com/thos25/homelab-kubernetes
+    repoURL: https://github.com/path-to-my-k8-manifest-repo.git
     targetRevision: HEAD
     path: media/<app>/
     directory:
