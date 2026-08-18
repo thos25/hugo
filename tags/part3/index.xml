@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Part3 on Joey's Site</title><link>https://www.joeyaxtell.com/tags/part3/</link><description>Recent content in Part3 on Joey's Site</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 31 Jul 2026 09:00:00 -0600</lastBuildDate><atom:link href="https://www.joeyaxtell.com/tags/part3/index.xml" rel="self" type="application/rss+xml"/><item><title>Configuring the Cluster: TLS, Secrets, and Learning to Not Lose a Node</title><link>https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/</link><pubDate>Fri, 31 Jul 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;strong&gt;3. Configuration&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;&lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;Last time&lt;/a&gt; I had three MicroK8s nodes joined into a cluster. That&amp;rsquo;s a cluster you can &lt;code&gt;kubectl get nodes&lt;/code&gt; against, but it&amp;rsquo;s not yet a cluster you&amp;rsquo;d trust with anything real. This post covers the configuration work that closed that gap: certificates, secrets, and a couple of lessons I learned the hard way about how the cluster behaves when a node actually dies.&lt;/p&gt;
+&lt;h2 id="tls-real-certificates-for-an-internal-only-cluster"&gt;TLS: real certificates for an internal-only cluster
+&lt;/h2&gt;&lt;p&gt;Every host I run is a subdomain of &lt;code&gt;joeyaxtell.com&lt;/code&gt;, but none of them are reachable from the public internet — they all resolve to addresses inside my LAN. That rules out the usual HTTP-01 ACME challenge, which needs Let&amp;rsquo;s Encrypt to reach your server directly. The fix is a &lt;strong&gt;DNS-01 challenge through Cloudflare&lt;/strong&gt;, which proves domain ownership by writing a TXT record instead of serving an HTTP response:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;cert-manager.io/v1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ClusterIssuer&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;letsencrypt-cloudflare&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;acme&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;server&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://acme-v02.api.letsencrypt.org/directory&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;email&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;YOUR_EMAIL@EXAMPLE.COM&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;solvers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;dns01&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;cloudflare&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;apiTokenSecretRef&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;cloudflare-api-token&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;key&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;api-token&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s the &lt;strong&gt;production&lt;/strong&gt; ACME endpoint, not staging. I went straight for real certificates on the first ClusterIssuer I ever wrote, which was a little bold in hindsight — Let&amp;rsquo;s Encrypt&amp;rsquo;s production rate limits aren&amp;rsquo;t generous if you get the config wrong and end up retrying in a loop. It worked out, but staging first is the safer habit.&lt;/p&gt;
+&lt;p&gt;I proved it worked the same way I proved everything else in this series: a disposable &lt;code&gt;nginx&lt;/code&gt; pod at &lt;code&gt;test.joeyaxtell.com&lt;/code&gt;, watched until a real certificate showed up in its Secret, then deleted.&lt;/p&gt;
+&lt;h2 id="secrets-three-stages-and-only-the-first-one-is-embarrassing"&gt;Secrets: three stages, and only the first one is embarrassing
+&lt;/h2&gt;&lt;p&gt;My secrets story is basically a timeline of learning why each previous approach doesn&amp;rsquo;t scale.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Stage 1 — plaintext templates committed to git.&lt;/strong&gt; The Cloudflare API token secret started life as a literal &lt;code&gt;kind: Secret&lt;/code&gt; manifest with &lt;code&gt;api-token: YOUR_CLOUDFLARE_API_TOKEN&lt;/code&gt; committed to the repo, meant to be hand-edited locally before applying. Never a real credential in git, but also not a pattern I&amp;rsquo;d want to repeat as the number of secrets grew.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Stage 2 — imperative, out-of-band &lt;code&gt;kubectl create secret&lt;/code&gt;.&lt;/strong&gt; For a while, secrets simply didn&amp;rsquo;t exist in the repo at all, just a comment documenting the &lt;code&gt;kubectl create secret generic ... --from-literal=...&lt;/code&gt; command I&amp;rsquo;d run once by hand and never again. It works, but it means the repo doesn&amp;rsquo;t actually describe the cluster. There&amp;rsquo;s a whole category of state that only exists in my shell history.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Stage 3 — Sealed Secrets.&lt;/strong&gt; This is where I landed, and where new secrets go today. The &lt;a class="link" href="https://github.com/bitnami-labs/sealed-secrets" target="_blank" rel="noopener"
+&gt;Bitnami Sealed Secrets&lt;/a&gt; controller lets you encrypt a Secret client-side with its public key, commit the encrypted &lt;code&gt;SealedSecret&lt;/code&gt; to git, and only the controller running in-cluster can decrypt it back into a real Secret. The workflow, including the PowerShell-specific piping since I do this from Windows:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kubeseal --fetch-cert --controller-namespace default --controller-name sealed-secrets-controller &amp;gt; cert.pem
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Get-Content secret.yaml | kubeseal --cert cert.pem -o yaml &amp;gt; sealedsecret.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That finally makes both a secret&amp;rsquo;s existence and its encrypted value visible in git history, without the value ever being recoverable by anyone who doesn&amp;rsquo;t hold the cluster&amp;rsquo;s private key. It&amp;rsquo;s not applied everywhere yet — that migration is still going workload by workload — but it&amp;rsquo;s the pattern I reach for now.&lt;/p&gt;
+&lt;h2 id="update-tracking-an-opt-in-watcher"&gt;Update tracking: an opt-in watcher
+&lt;/h2&gt;&lt;p&gt;Rather than a blanket &amp;ldquo;check everything for updates&amp;rdquo; policy, I run &lt;a class="link" href="https://github.com/crazymax/diun" target="_blank" rel="noopener"
+&gt;Diun&lt;/a&gt; with Kubernetes provider support enabled, watching every six hours. Workloads opt in individually by adding one annotation to their pod template:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;annotations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;diun.enable&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;true&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That opt-in model matters. I want to know when something has a new image available, but I don&amp;rsquo;t want that noise on things I&amp;rsquo;ve deliberately pinned. When I locked one workload to a specific version and set &lt;code&gt;imagePullPolicy: IfNotPresent&lt;/code&gt; so it would stop drifting, the next thing I did was pull the &lt;code&gt;diun.enable&lt;/code&gt; annotation back off it. No point getting paged about updates I&amp;rsquo;ve already decided not to take.&lt;/p&gt;
+&lt;h2 id="configuring-for-node-failure"&gt;Configuring for node failure
+&lt;/h2&gt;&lt;p&gt;The most useful configuration change I made didn&amp;rsquo;t happen until months in, after I actually lost a node and watched what happened: nothing, for a long time. Kubernetes&amp;rsquo; default tolerance for an unreachable node is generous — pods on a node that goes &lt;code&gt;NotReady&lt;/code&gt; or &lt;code&gt;Unreachable&lt;/code&gt; aren&amp;rsquo;t rescheduled for &lt;strong&gt;five minutes&lt;/strong&gt; by default. On a three-node homelab cluster, five minutes of a chunk of your services being down because one box hiccuped is a bad trade.&lt;/p&gt;
+&lt;p&gt;The fix, applied across every deployment in one pass once I understood the knob:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;span class="lnt"&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;tolerations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;key&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;node.kubernetes.io/not-ready&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;operator&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;Exists&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;effect&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;NoExecute&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;tolerationSeconds&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;30&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;key&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;node.kubernetes.io/unreachable&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;operator&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;Exists&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;effect&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;NoExecute&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;tolerationSeconds&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;30&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That cuts the eviction wait from five minutes to thirty seconds. I paired it with &lt;code&gt;strategy: Recreate&lt;/code&gt; on the same deployments, since my persistent volumes are &lt;code&gt;ReadWriteOnce&lt;/code&gt; and a rolling update trying to attach the same volume to a second pod before the first releases it just hangs. &lt;code&gt;Recreate&lt;/code&gt; tears the old pod down before standing the new one up. It&amp;rsquo;s slower for a routine deploy, but it&amp;rsquo;s the only strategy that actually works with single-writer storage.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;With TLS, secrets, and failure handling in place, the next post covers how traffic actually gets from my LAN to a pod — Traefik, MetalLB, and DNS.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt;&lt;/p&gt;</description></item></channel></rss>

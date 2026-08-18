@@ -1,0 +1,732 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Joey's Site</title><link>https://www.joeyaxtell.com/</link><description>Recent content on Joey's Site</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sun, 16 Aug 2026 09:00:00 -0600</lastBuildDate><atom:link href="https://www.joeyaxtell.com/index.xml" rel="self" type="application/rss+xml"/><item><title>Homelab Kubernetes Adventure</title><link>https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/</link><pubDate>Wed, 07 Jan 2026 22:09:17 -0600</pubDate><guid>https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/</guid><description>&lt;img src="https://www.ovhcloud.com/sites/default/files/styles/text_media_horizontal/public/2021-04/K8S-logo.png" alt="Featured image of post Homelab Kubernetes Adventure" /&gt;&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;strong&gt;1. Intro&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h1 id="homelab"&gt;Homelab
+&lt;/h1&gt;&lt;h2 id="intro"&gt;Intro
+&lt;/h2&gt;&lt;p&gt;This is the first of a multi-post series detailing my adventure in Kubernetes. I will go over what hardware i selected, what Kubernetes deployment method i chose, my first deployments, converting my docker compose manifests into Kubernetes manifests, storage, backups, GitOps with ArgoCD, and much more.&lt;/p&gt;
+&lt;p&gt;This is my first time diving into Kubernetes, and the learning curve was high. But i&amp;rsquo;ve learned a lot and i hope that by documenting what i went through, it&amp;rsquo;ll help you on your journey to better understanding Kubernetes.&lt;/p&gt;
+&lt;h1 id="problem-statement"&gt;Problem Statement
+&lt;/h1&gt;&lt;p&gt;&lt;img src="https://en.meming.world/images/en/thumb/4/4a/Modern_Problems_Require_Modern_Solutions.jpg/300px-Modern_Problems_Require_Modern_Solutions.jpg"
+loading="lazy"
+alt="Modern Problems"
+&gt;&lt;/p&gt;
+&lt;p&gt;My homelab situation was not great. Here was the state of my environment, and why it needed to change:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Outdated single-server hardware (limited resources, aging)&lt;/li&gt;
+&lt;li&gt;Single point of failure — no redundancy or HA&lt;/li&gt;
+&lt;li&gt;Services scattered in Docker Compose stacks, no orchestration&lt;/li&gt;
+&lt;li&gt;No consistent persistent storage or volume strategy&lt;/li&gt;
+&lt;li&gt;No automated backups or recovery plan&lt;/li&gt;
+&lt;li&gt;Manual deployments, manual updating, leading to drift and falling behind&lt;/li&gt;
+&lt;li&gt;No centralized monitoring, logging, or alerting&lt;/li&gt;
+&lt;li&gt;Network complexity exposing services locally&lt;/li&gt;
+&lt;li&gt;Limited capacity for scaling or resource isolation&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This is essentially the topology of my homelab before Kubernetes:
+&lt;img src="https://www.joeyaxtell.com/homelab_before.png"
+loading="lazy"
+alt="Sad Homelab"
+&gt;&lt;/p&gt;
+&lt;p&gt;As you can tell, single server homelabs have their limitations. When that single server goes down, everything goes down with it. My services were running in Docker Compose stacks, which worked fine for a while, but as I added more services, managing and updating them became a nightmare. There was no orchestration, so if a container crashed, it stayed down until I manually intervened.&lt;/p&gt;
+&lt;p&gt;I did, luckily, have my manifests in source control, but that&amp;rsquo;s about where the &lt;code&gt;pro's&lt;/code&gt; end.&lt;/p&gt;
+&lt;h1 id="solution"&gt;Solution
+&lt;/h1&gt;&lt;p&gt;I improved my homelab by deploying Kubernetes: I purchased multiple hosts and built a cluster while learning core Kubernetes concepts and operations. The goal was to run my containerized apps on a resilient platform that provides orchestration, automated failover, rolling updates, scaling, and centralized management.&lt;/p&gt;
+&lt;p&gt;This is what the intended solution should look like:
+&lt;img src="https://www.joeyaxtell.com/homelab_after.png"
+loading="lazy"
+alt="Happy Homelab"
+&gt;&lt;/p&gt;
+&lt;p&gt;This solution addresses the problems I faced:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Redundancy and High Availability&lt;/strong&gt;: Multiple nodes ensure services remain available even if one node fails.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Orchestration&lt;/strong&gt;: Kubernetes manages container deployment, scaling, and recovery automatically.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Consistent Storage&lt;/strong&gt;: Implementing persistent volumes for reliable data storage.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Automated Backups&lt;/strong&gt;: Scheduled backups to protect against data loss.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;GitOps&lt;/strong&gt;: Using ArgoCD for declarative, version-controlled deployments.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Centralized Monitoring&lt;/strong&gt;: Tools like Prometheus and Grafana for insights into system health&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id="more-to-come"&gt;More to come
+&lt;/h1&gt;&lt;p&gt;I am going to break up this series into multiple posts so that it&amp;rsquo;s easy to follow, so stay tuned for more!&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt;&lt;/p&gt;</description></item><item><title>GitOps in Practice: What's Actually Automated, and What's Still Manual</title><link>https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/</link><pubDate>Sun, 16 Aug 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;strong&gt;8. GitOps&lt;/strong&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;&lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;Last post&lt;/a&gt; covered getting ArgoCD installed, including a rendering bug that quietly left some Applications running outside GitOps entirely. To close out the series, here&amp;rsquo;s a snapshot of what GitOps actually looks like day to day in this homelab right now, not the aspirational version, the real one.&lt;/p&gt;
+&lt;h2 id="whats-genuinely-under-gitops-today"&gt;What&amp;rsquo;s genuinely under GitOps today
+&lt;/h2&gt;&lt;p&gt;Auto-sync is on everywhere, with both &lt;code&gt;prune&lt;/code&gt; and &lt;code&gt;selfHeal&lt;/code&gt; enabled on every Application, no exceptions. In practice that means: edit a manifest in git, push, and within a few minutes the cluster matches. Delete a resource from git, and ArgoCD removes it from the cluster. Edit something in the cluster directly instead of in git, and ArgoCD quietly reverts it back to match git on the next reconciliation loop. That last one took some getting used to. The first time I &lt;code&gt;kubectl edit&lt;/code&gt;&amp;rsquo;d something to test a quick change and watched ArgoCD undo it thirty seconds later, it was a good reminder of what &amp;ldquo;git is the source of truth&amp;rdquo; actually means in practice, not just in theory.&lt;/p&gt;
+&lt;p&gt;Coverage today is honest but incomplete: the workloads reachable from git are the media namespace apps and a handful of others, real, working, auto-syncing. The &lt;strong&gt;platform layer isn&amp;rsquo;t there yet&lt;/strong&gt; — cert-manager, Traefik, Longhorn, and the observability stack are all still installed and managed the way they were in the &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;installation&lt;/a&gt; and &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration&lt;/a&gt; posts: by hand, outside git. GitOps started with the easiest, most repetitive layer first and hasn&amp;rsquo;t gotten down to the foundation yet. That&amp;rsquo;s next.&lt;/p&gt;
+&lt;h2 id="sealed-secrets-running-for-real"&gt;Sealed Secrets, running for real
+&lt;/h2&gt;&lt;p&gt;Unlike the ArgoCD image updater below, this one&amp;rsquo;s live: the Sealed Secrets controller itself is deployed as an ArgoCD Application, sourced straight from its upstream Helm repo rather than my own git repo:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;source&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;repoURL&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://bitnami-labs.github.io/sealed-secrets&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;chart&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;sealed-secrets&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;targetRevision&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;2.18.3&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s the same controller powering the encrypted-secret workflow from the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration post&lt;/a&gt;, and it&amp;rsquo;s a good example of ArgoCD managing infrastructure that isn&amp;rsquo;t my own code at all, just a chart I depend on.&lt;/p&gt;
+&lt;h2 id="what-i-tried-and-walked-back-per-project-isolation"&gt;What I tried and walked back: per-project isolation
+&lt;/h2&gt;&lt;p&gt;Early on I wanted ArgoCD&amp;rsquo;s AppProject concept to segment my workloads: media apps in one project, platform in another, each with its own repo and resource restrictions. I wrote the AppProject, and then wrote the honest verdict directly into the file when I hit the wall:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# This doesn&amp;#39;t work currently. You can only tie 1 repo to 1 project.&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# If I had my deployments in separate repos, then I&amp;#39;d create new projects for each.&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;All of my workload manifests live in one repo, so a project boundary drawn around &amp;ldquo;one repo&amp;rdquo; doesn&amp;rsquo;t actually separate anything. That AppProject was never applied — every Application in the cluster still runs under the &lt;code&gt;default&lt;/code&gt; project. Splitting workloads into separate repos per concern is the real fix, and it&amp;rsquo;s a bigger reorganization than I&amp;rsquo;ve wanted to take on yet. I&amp;rsquo;m leaving the dead end in here because &amp;ldquo;I tried this and the docs made it sound simpler than it turned out to be&amp;rdquo; is worth writing down, rather than pretending the idea worked the first time.&lt;/p&gt;
+&lt;h2 id="whats-built-but-not-live-image-automation"&gt;What&amp;rsquo;s built but not live: image automation
+&lt;/h2&gt;&lt;p&gt;I added the ArgoCD Image Updater&amp;rsquo;s Application manifest and annotated one workload (Pi-hole, using its &lt;code&gt;yyyy.mm.x&lt;/code&gt; version scheme) to be managed by it:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;annotations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/image-list&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;pihole=pihole/pihole&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/pihole.update-strategy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;latest&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/pihole.allow-tags&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;regexp:^\d{4}\.\d{2}\.\d+$&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/write-back-method&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;git&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;code&gt;write-back-method: git&lt;/code&gt; is the part I like most about the design. Instead of silently mutating the live Deployment, the updater would commit the new image tag back to git itself, so even automated version bumps stay visible in commit history. The catch: the Image Updater&amp;rsquo;s own Application never actually got deployed, so none of this is running yet. The annotations are sitting there, correctly configured, waiting for their controller to exist. It&amp;rsquo;s on the same list as the app-of-apps fix from the last post.&lt;/p&gt;
+&lt;h2 id="the-gotcha-thats-still-live-a-valuesyaml-nobody-reads"&gt;The gotcha that&amp;rsquo;s still live: a values.yaml nobody reads
+&lt;/h2&gt;&lt;p&gt;This is the one I want to flag clearest, because unlike the others it&amp;rsquo;s a silent landmine rather than an inert feature. ArgoCD&amp;rsquo;s own Helm install has a &lt;code&gt;values.yaml&lt;/code&gt; sitting at my repo root, with two settings I actually care about:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;configs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;params&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;server.insecure&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;true&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;accounts.admin&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;apiKey,login&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;But the Application that installs ArgoCD points at &lt;code&gt;charts/argo-cd&lt;/code&gt;, and that directory has no &lt;code&gt;values.yaml&lt;/code&gt; of its own. My root-level file is never read by ArgoCD at all. It&amp;rsquo;s a leftover from the very first &lt;code&gt;helm install -f values.yaml&lt;/code&gt; I ran by hand, before ArgoCD was managing itself.&lt;/p&gt;
+&lt;p&gt;Right now those two settings are still active in the cluster, purely because ArgoCD&amp;rsquo;s reconciliation merges into the existing ConfigMaps rather than replacing them wholesale. The values survive as leftover keys Helm&amp;rsquo;s chart defaults don&amp;rsquo;t know to remove. But that&amp;rsquo;s fragile: if either ConfigMap ever gets deleted and recreated from scratch, both settings silently revert to upstream defaults. &lt;code&gt;server.insecure&lt;/code&gt; reverting to &lt;code&gt;false&lt;/code&gt; would be the visible one — my Traefik route talks plain HTTP to ArgoCD&amp;rsquo;s server on the assumption that TLS is terminated upstream, so a default-secure ArgoCD would break the UI behind its own working certificate. The fix is simple: move the file into &lt;code&gt;charts/argo-cd/values.yaml&lt;/code&gt; where the Application actually looks for it. That&amp;rsquo;s genuinely the next thing I&amp;rsquo;m doing after publishing this post.&lt;/p&gt;
+&lt;h2 id="where-this-goes-next"&gt;Where this goes next
+&lt;/h2&gt;&lt;p&gt;Looking at everything laid out across these gotchas, the real GitOps roadmap for this homelab is:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Fix the app-of-apps rendering bug so every Application actually lives under &lt;code&gt;templates/&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Move ArgoCD&amp;rsquo;s &lt;code&gt;values.yaml&lt;/code&gt; to where its own Application will actually read it.&lt;/li&gt;
+&lt;li&gt;Split workloads into separate repos (or at least separate paths with real project boundaries) so AppProjects can do something useful.&lt;/li&gt;
+&lt;li&gt;Deploy the Image Updater for real, now that the annotations are already sitting there configured.&lt;/li&gt;
+&lt;li&gt;Bring the platform layer — cert-manager, Traefik, Longhorn, observability — into git the same way the workloads already are.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;None of that is a rewrite. It&amp;rsquo;s closing gaps I only found by actually running this for months and watching where reality quietly diverged from what the repo said it should be. That, in hindsight, was the actual point of this series: not a perfect homelab, but what building one for real, mistakes included, actually looks like.&lt;/p&gt;
+&lt;p&gt;Thanks for following along.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Moving to ArgoCD: An App-of-Apps, and the Bug That Taught Me How Helm Rendering Works</title><link>https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/</link><pubDate>Thu, 13 Aug 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;strong&gt;7. ArgoCD&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;Everything up through &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;the last post&lt;/a&gt; got onto the cluster the same way: &lt;code&gt;kubectl apply -f&lt;/code&gt;, from whichever terminal I happened to have open, applied in whatever order I remembered to run things. That works right up until it doesn&amp;rsquo;t. This post is about why I moved to ArgoCD, and a bug in my own setup that I didn&amp;rsquo;t catch for months.&lt;/p&gt;
+&lt;h2 id="why-kubectl-apply-stopped-being-enough"&gt;Why kubectl apply stopped being enough
+&lt;/h2&gt;&lt;p&gt;A few things pushed me here. There was no record of what was actually deployed versus what I&amp;rsquo;d only ever run once from history. There was no reconciliation — if something drifted from the manifest, or someone (me, running a one-off &lt;code&gt;kubectl edit&lt;/code&gt;) changed it directly, nothing would ever notice or fix it. And there was no single place to look and answer &amp;ldquo;is the cluster in the state I think it&amp;rsquo;s in.&amp;rdquo; GitOps fixes all three: git is the source of truth, and a controller in the cluster keeps reality in sync with it.&lt;/p&gt;
+&lt;p&gt;I followed &lt;a class="link" href="https://www.micahbird.com/p/how-to-setup-argocd-the-homelab-way/" target="_blank" rel="noopener"
+&gt;Micah Bird&amp;rsquo;s homelab ArgoCD guide&lt;/a&gt; as the starting pattern, in a separate repo from the workload manifests themselves.&lt;/p&gt;
+&lt;h2 id="installing-argocd-and-having-it-manage-itself"&gt;Installing ArgoCD, and having it manage itself
+&lt;/h2&gt;&lt;p&gt;ArgoCD is installed as a small Helm wrapper chart around the upstream &lt;code&gt;argo-helm&lt;/code&gt; chart:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;v2&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;argo-cd&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;3.2.1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;dependencies&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;argo-cd&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;version&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;9.1.7&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;repository&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://argoproj.github.io/argo-helm&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;The interesting part isn&amp;rsquo;t the install itself, it&amp;rsquo;s what happens right after: ArgoCD manages its own upgrade going forward, as just another Application pointed at that same chart path in the same repo. Once it&amp;rsquo;s up, I don&amp;rsquo;t run &lt;code&gt;helm upgrade&lt;/code&gt; by hand anymore. I bump the version in git and let ArgoCD reconcile itself.&lt;/p&gt;
+&lt;p&gt;Ingress needed one non-obvious detail. ArgoCD&amp;rsquo;s UI and CLI both talk gRPC, which doesn&amp;rsquo;t play nicely with a plain HTTP-routed IngressRoute, so the route needs a second, higher-priority rule specifically for gRPC traffic, upgraded to &lt;code&gt;h2c&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- &lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Rule&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;match&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Host(`argocd.joeyaxtell.com`) &amp;amp;&amp;amp; Header(`Content-Type`, `application/grpc`)&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;priority&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;11&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;services&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;argo-cd-argocd-server&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;port&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;80&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;scheme&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;h2c&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Without that, the web UI loads fine but the CLI and any gRPC-based calls fail in confusing ways.&lt;/p&gt;
+&lt;h2 id="app-of-apps"&gt;App-of-apps
+&lt;/h2&gt;&lt;p&gt;The pattern I landed on is the classic app-of-apps: one root Application watches a directory in git, and every file in that directory becomes another Application that ArgoCD manages:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;source&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;repoURL&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://github.com/path-to-my-argo-cd-repo.git&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;path&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;apps/&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;targetRevision&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;HEAD&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;syncPolicy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;automated&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;prune&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;allowEmpty&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;selfHeal&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Add a workload, add one small Application file describing where its manifests live and where it should be deployed, and ArgoCD picks it up automatically. Each one follows the same shape: point at a path in my &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;homelab-kubernetes&lt;/a&gt; repo, sync automatically, prune anything removed, and self-heal anything that drifts.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;span class="lnt"&gt;15
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;source&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;repoURL&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://github.com/path-to-my-k8-manifest-repo.git&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;targetRevision&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;HEAD&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;path&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;media/&amp;lt;app&amp;gt;/&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;directory&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;recurse&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;syncPolicy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;automated&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;prune&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;selfHeal&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;ignoreDifferences&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;group&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;apps&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Deployment&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;jsonPointers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="l"&gt;/spec/replicas]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That last bit, &lt;code&gt;ignoreDifferences&lt;/code&gt; on replica count, exists so that if I manually scale something down for maintenance, ArgoCD&amp;rsquo;s self-heal doesn&amp;rsquo;t immediately scale it back up and fight me.&lt;/p&gt;
+&lt;h2 id="the-bug-not-every-application-file-is-actually-an-application"&gt;The bug: not every Application file is actually an Application
+&lt;/h2&gt;&lt;p&gt;Here&amp;rsquo;s the one I didn&amp;rsquo;t catch for a while, and I think it&amp;rsquo;s a genuinely useful lesson about how Helm rendering works. My &lt;code&gt;apps/&lt;/code&gt; directory is itself a Helm chart — it has a &lt;code&gt;Chart.yaml&lt;/code&gt; — which means ArgoCD renders it as a Helm chart. Helm has a rule I hadn&amp;rsquo;t fully internalized: &lt;strong&gt;only files under &lt;code&gt;templates/&lt;/code&gt; get rendered as manifests.&lt;/strong&gt; Anything sitting at the chart root is just a file Helm can reference via &lt;code&gt;.Files&lt;/code&gt;, but it never gets emitted.&lt;/p&gt;
+&lt;p&gt;I had new workload Applications sitting at the chart root instead of inside &lt;code&gt;templates/&lt;/code&gt;. They were valid YAML, they were committed to git, and the root app-of-apps Application showed as &lt;code&gt;Synced&lt;/code&gt; at the exact commit that added them. Every signal you&amp;rsquo;d normally trust said everything was fine. But because they weren&amp;rsquo;t inside &lt;code&gt;templates/&lt;/code&gt;, Helm silently never rendered them, and they never became real ArgoCD Applications. The workloads they described only exist in my cluster today because I &lt;code&gt;kubectl apply&lt;/code&gt;&amp;rsquo;d them by hand at some point. GitOps for those apps is, right now, an illusion. If I&amp;rsquo;d edited that file in git expecting a sync to follow, nothing would have happened, because ArgoCD never rendered it as anything to sync.&lt;/p&gt;
+&lt;p&gt;The fix is a one-line move — &lt;code&gt;apps/pihole.yml&lt;/code&gt; becomes &lt;code&gt;apps/templates/pihole.yml&lt;/code&gt; — and it&amp;rsquo;s on my list. I&amp;rsquo;m leaving the mistake in this post instead of quietly writing around it, because &amp;ldquo;the sync status looked healthy and I was still wrong&amp;rdquo; is exactly the kind of thing worth knowing to check for.&lt;/p&gt;
+&lt;h2 id="secrets-and-private-repos"&gt;Secrets and private repos
+&lt;/h2&gt;&lt;p&gt;ArgoCD needs credentials to pull from a private GitHub repo, which it gets from an ordinary Secret carrying one special label:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;labels&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd.argoproj.io/secret-type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;repository&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;stringData&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;git&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;url&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://github.com/[GITHUB_REPO_HERE]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;username&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="l"&gt;GITHUB USERNAME HERE]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;password&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="l"&gt;GITHUB PAT TOKEN HERE]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That label is what tells ArgoCD to treat this Secret as repository credentials rather than just an opaque Secret sitting in the namespace. The real values are created out-of-band, the same way the Cloudflare token was in the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration post&lt;/a&gt; — the committed file is a template, never a credential.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;Getting ArgoCD installed is one thing; actually leveraging it day to day is another. The next post covers what&amp;rsquo;s really running through it today, what I tried and had to walk back, and where the gaps still are.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Running Workloads: From Compose Files to Kubernetes Manifests</title><link>https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/</link><pubDate>Mon, 10 Aug 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;strong&gt;6. Workloads&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;Certificates, secrets, networking, and storage are all in place after the last four posts. This one is about the actual workloads: turning what used to be Docker Compose stacks into real Kubernetes manifests, and the conventions that came out of doing that a dozen times over.&lt;/p&gt;
+&lt;h2 id="the-structural-pattern"&gt;The structural pattern
+&lt;/h2&gt;&lt;p&gt;Nothing fancy here: one folder per application, and inside it a single manifest file with a Deployment, Service, and Ingress concatenated together with &lt;code&gt;---&lt;/code&gt;. No Helm charts for my own apps, no Kustomize overlays, just plain YAML applied with &lt;code&gt;kubectl apply -f&lt;/code&gt;. It&amp;rsquo;s not the most sophisticated pattern, but it maps almost one-to-one onto how I used to think about a Compose service, which made the conversion a lot less intimidating than I expected going in.&lt;/p&gt;
+&lt;p&gt;A few conventions repeat across nearly every workload I run, mostly inherited straight from the &lt;a class="link" href="https://www.linuxserver.io/" target="_blank" rel="noopener"
+&gt;linuxserver.io&lt;/a&gt; image conventions I was already used to from Compose:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;env&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;PUID&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;value&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;3000&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;PGID&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;value&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;3000&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;TZ&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;value&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;America/Chicago&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Consistent UID/GID across every app made the NFS permissions story from the &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;storage post&lt;/a&gt; a lot simpler: one user, one group, every app writing to shared volumes without stepping on each other&amp;rsquo;s file ownership.&lt;/p&gt;
+&lt;h2 id="whats-actually-running"&gt;What&amp;rsquo;s actually running
+&lt;/h2&gt;&lt;p&gt;I keep a handful of apps in a dedicated media namespace that I&amp;rsquo;m not going to detail here. What they do and how they&amp;rsquo;re wired up isn&amp;rsquo;t the interesting part of this series. What is relevant to a Kubernetes post: those workloads split across both storage tiers exactly like the last post described (small per-app config volumes on Longhorn, a large shared library on NFS), and one of them needs privileged networking capabilities beyond what the rest of the cluster requires — a reminder that Kubernetes can still handle non-standard networking when you actually need it.&lt;/p&gt;
+&lt;p&gt;Outside of that namespace, a few things are worth naming specifically:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Pi-hole&lt;/strong&gt; — DNS for the network, covered in the &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;networking post&lt;/a&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Home Assistant&lt;/strong&gt; — my home automation platform, with its own Ingress and a persistent NFS-backed config volume.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Heimdall&lt;/strong&gt; — a simple landing page/dashboard linking out to everything else I run.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Diun&lt;/strong&gt; — the update-tracking watcher from the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration post&lt;/a&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="what-didnt-survive"&gt;What didn&amp;rsquo;t survive
+&lt;/h2&gt;&lt;p&gt;Not every experiment stuck around, and that&amp;rsquo;s not really a bad thing. A Kubernetes Dashboard deployment went through three rounds of tweaking over about a week and then got deleted — Traefik plus Grafana plus &lt;code&gt;kubectl&lt;/code&gt; covered what I actually needed, and running a second web UI just to look at the cluster stopped earning its keep. A chat-gateway service got built out over several commits — init container, security context, Sealed Secrets for its API tokens, the works — and was pulled a day later once I decided it wasn&amp;rsquo;t worth the maintenance surface for how often I&amp;rsquo;d actually use it. Its PVC is still sitting there, unclaimed, which is its own small lesson about cleaning up after yourself.&lt;/p&gt;
+&lt;p&gt;Neither of those is really a failure story. They&amp;rsquo;re closer to &amp;ldquo;built it, used it for a week, decided it wasn&amp;rsquo;t worth carrying forward,&amp;rdquo; which is a normal part of running a homelab. I&amp;rsquo;d rather show that than pretend every manifest I&amp;rsquo;ve ever written is still in service.&lt;/p&gt;
+&lt;h2 id="the-maturity-marker"&gt;The maturity marker
+&lt;/h2&gt;&lt;p&gt;The clearest sign that this stack has moved from &amp;ldquo;getting it working&amp;rdquo; to &amp;ldquo;operating it&amp;rdquo; is a single commit that touched twelve deployments at once, adding the failure-tolerance settings from the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration post&lt;/a&gt; — shorter node-failure tolerations, paired with &lt;code&gt;strategy: Recreate&lt;/code&gt; everywhere a &lt;code&gt;ReadWriteOnce&lt;/code&gt; volume is involved. You don&amp;rsquo;t make a change like that on day one. You make it after a node actually goes down and you sit there watching five minutes tick by before anything comes back.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;Everything so far has been applied by hand — &lt;code&gt;kubectl apply -f&lt;/code&gt;, one file at a time, from whichever terminal I happened to be in. The next post is about why that stopped being good enough, and moving to ArgoCD.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Storage in the Homelab: NFS for Bulk, Longhorn for Anything With a Database</title><link>https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/</link><pubDate>Thu, 06 Aug 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;strong&gt;5. Storage&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;Traffic can reach a pod as of &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;the last post&lt;/a&gt;. This one is about what happens after that: where the data actually lives, and why I ended up running two completely different storage systems instead of one.&lt;/p&gt;
+&lt;h2 id="the-split-nfs-vs-longhorn"&gt;The split: NFS vs. Longhorn
+&lt;/h2&gt;&lt;p&gt;I run storage on two tiers, and the dividing line comes down to one question: &lt;strong&gt;does this workload need a single-writer block device, or can it live happily on shared network storage?&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Tier one is NFS&lt;/strong&gt;, backed by a TrueNAS box on my network. I provisioned a handful of statically-defined PersistentVolumes against it: one for general app config, one for a large shared media library, and one for another large content volume, all &lt;code&gt;ReadWriteMany&lt;/code&gt; and all set to &lt;code&gt;Retain&lt;/code&gt; so deleting the claim never deletes the data.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;span class="lnt"&gt;15
+&lt;/span&gt;&lt;span class="lnt"&gt;16
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;v1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;PersistentVolume&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;truenas-config-pv&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;labels&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;config&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;capacity&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;storage&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;1Ti&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;accessModes&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="l"&gt;ReadWriteMany&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;persistentVolumeReclaimPolicy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Retain&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;nfs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;server&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;192.168.0.126&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;path&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;/mnt/media/configs&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;storageClassName&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;config&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;There&amp;rsquo;s no dynamic NFS provisioner in the mix, so binding a PVC to the right PV is done the old-fashioned way, with label selectors:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;selector&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;matchLabels&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;config&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;A handful of small apps — a dashboard, a home automation platform, an update-tracking service, a DNS server — all share that single config PV, each carving out its own directory with &lt;code&gt;subPath&lt;/code&gt;. It&amp;rsquo;s a simple pattern, and it works well for anything that just wants a folder to read and write config files from, shared across as many pods as need it.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Tier two is Longhorn&lt;/strong&gt;, MicroK8s&amp;rsquo;s built-in distributed block storage addon, used for &lt;code&gt;ReadWriteOnce&lt;/code&gt; volumes where something wants exclusive, low-latency access to its own disk. Every app in my media namespace that needs a config volume gets its own small dedicated Longhorn PVC (a few gigabytes each) rather than sharing the NFS config volume the smaller apps use.&lt;/p&gt;
+&lt;p&gt;Longhorn itself lives entirely in the addon layer. &lt;code&gt;microk8s enable&lt;/code&gt; turned it on, so the only thing I actually own in git for it is its Ingress, giving me a web UI at &lt;code&gt;longhorn.joeyaxtell.com&lt;/code&gt;. That also means I don&amp;rsquo;t have replica counts, backup targets, or a documented disaster-recovery story committed anywhere in the repo yet. It&amp;rsquo;s a gap, and it&amp;rsquo;s on the list.&lt;/p&gt;
+&lt;h2 id="the-migration-that-taught-me-the-dividing-line"&gt;The migration that taught me the dividing line
+&lt;/h2&gt;&lt;p&gt;I didn&amp;rsquo;t start out with a clean rule for which tier a workload belonged on. I found the rule the hard way. A handful of containers in my media namespace keep their own local state in an embedded database, SQLite in every case that bit me. SQLite and NFS do not get along: file locking over a network filesystem is unreliable enough that those apps would intermittently stall or throw database-locked errors under normal use.&lt;/p&gt;
+&lt;p&gt;The fix was a straight storage migration: move each affected app&amp;rsquo;s config volume off the shared NFS PVC and onto its own dedicated Longhorn PVC instead. The difference was immediate. No more lock contention, because Longhorn gives each pod exclusive block-level access to its own volume instead of arbitrating access across the network. That&amp;rsquo;s the same reasoning behind putting every media app&amp;rsquo;s config volume on Longhorn in the first place: anything with a real database wants a real disk, not a network share, even if the network share is easier to set up.&lt;/p&gt;
+&lt;p&gt;The rule of thumb I use now: &lt;strong&gt;bulk, shared, or read-heavy data → NFS. Anything with an embedded database or that&amp;rsquo;s picky about file locking → Longhorn.&lt;/strong&gt;&lt;/p&gt;
+&lt;h2 id="a-debug-pod-for-poking-at-block-storage"&gt;A debug pod for poking at block storage
+&lt;/h2&gt;&lt;p&gt;One annoyance with &lt;code&gt;ReadWriteOnce&lt;/code&gt; Longhorn volumes: you can&amp;rsquo;t just browse them from outside the pod that&amp;rsquo;s using them the way you can mount an NFS share from anywhere. So I keep a small utility pod around for exactly that:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;span class="lnt"&gt;15
+&lt;/span&gt;&lt;span class="lnt"&gt;16
+&lt;/span&gt;&lt;span class="lnt"&gt;17
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;v1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Pod&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;pvc-toolbox&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;restartPolicy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Never&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;containers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;toolbox&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;image&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ubuntu:22.04&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;command&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;sleep&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;infinity&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;volumeMounts&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;data&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;mountPath&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;/data&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;volumes&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;data&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;persistentVolumeClaim&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;claimName&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;media-config-pvc&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="c"&gt;# change this to the PVC you want to access&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;The workflow is three commands:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-gdscript3" data-lang="gdscript3"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;kubectl&lt;/span&gt; &lt;span class="n"&gt;exec&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;it&lt;/span&gt; &lt;span class="n"&gt;pvc&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;toolbox&lt;/span&gt; &lt;span class="o"&gt;--&lt;/span&gt; &lt;span class="n"&gt;bash&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;kubectl&lt;/span&gt; &lt;span class="n"&gt;cp&lt;/span&gt; &lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;local&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;path&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;to&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;file&lt;/span&gt; &lt;span class="n"&gt;pvc&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;toolbox&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;path&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="ow"&gt;in&lt;/span&gt;&lt;span class="o"&gt;/&lt;/span&gt;&lt;span class="n"&gt;pvc&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="n"&gt;kubectl&lt;/span&gt; &lt;span class="n"&gt;delete&lt;/span&gt; &lt;span class="n"&gt;pod&lt;/span&gt; &lt;span class="n"&gt;pvc&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;toolbox&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Point it at whatever PVC needs inspecting, exec in or &lt;code&gt;kubectl cp&lt;/code&gt; files in and out, then throw the pod away. It&amp;rsquo;s not fancy, but it&amp;rsquo;s saved me from writing one-off debugging tools more times than I expected.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;With traffic routed and storage sorted, the next post covers what&amp;rsquo;s actually running on top of all this — how I converted Compose stacks into Kubernetes manifests, the conventions I standardized on, and a couple of experiments that didn&amp;rsquo;t survive contact with reality.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Kubernetes Networking in the Homelab: Traefik, MetalLB, and Pi-hole</title><link>https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/</link><pubDate>Mon, 03 Aug 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;strong&gt;4. Networking&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;By &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;the last post&lt;/a&gt; I had certificates and secrets sorted out. None of that matters if traffic can&amp;rsquo;t actually reach a pod, so this post covers the path a request takes from a browser on my LAN to a container running in the cluster.&lt;/p&gt;
+&lt;h2 id="metallb-giving-the-cluster-real-lan-addresses"&gt;MetalLB: giving the cluster real LAN addresses
+&lt;/h2&gt;&lt;p&gt;Bare-metal Kubernetes has no cloud provider to hand out &lt;code&gt;LoadBalancer&lt;/code&gt; IPs for you, which is the gap &lt;a class="link" href="https://metallb.universe.tf/" target="_blank" rel="noopener"
+&gt;MetalLB&lt;/a&gt; fills. It&amp;rsquo;s a MicroK8s addon here, so there&amp;rsquo;s no manifest of my own to show, but the effect is that &lt;code&gt;type: LoadBalancer&lt;/code&gt; Services get a real, dedicated IP out of a pool I control instead of sitting in &lt;code&gt;&amp;lt;pending&amp;gt;&lt;/code&gt; forever.&lt;/p&gt;
+&lt;p&gt;Every application in the cluster shares one pattern: it sits behind Traefik, and Traefik gets exactly one of those addresses. The one exception is DNS. Pi-hole needs to &lt;em&gt;be&lt;/em&gt; the DNS resolver for the network, on a fixed, memorable IP, answering on the actual DNS port, and routing that through an HTTP reverse proxy doesn&amp;rsquo;t make sense. So it gets its own dedicated &lt;code&gt;LoadBalancer&lt;/code&gt; IP straight from the pool:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;v1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Service&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;pihole-dns&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;LoadBalancer&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;loadBalancerIP&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;192.168.0.241&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;ports&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;dns-udp&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;port&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;53&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;protocol&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;UDP&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;dns-tcp&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;port&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;53&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;protocol&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;TCP&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Every device on my network points its DNS at that one address.&lt;/p&gt;
+&lt;h2 id="traefik-one-ingress-host-based-routing"&gt;Traefik: one ingress, host-based routing
+&lt;/h2&gt;&lt;p&gt;&lt;a class="link" href="https://traefik.io/" target="_blank" rel="noopener"
+&gt;Traefik&lt;/a&gt; is installed by hand via Helm rather than a MicroK8s addon:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;helm install traefik traefik/traefik -f traefik_values.yaml --wait
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;The values file is intentionally small — a dashboard &lt;code&gt;IngressRoute&lt;/code&gt; and one forward-looking setting: the Kubernetes Gateway API provider is turned on.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;providers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;kubernetesGateway&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;gateway&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;listeners&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;web&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;namespacePolicy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;from&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;All&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That Gateway API setting isn&amp;rsquo;t actually doing anything yet. Every workload in the cluster still routes through a regular Kubernetes Ingress, which is the older, more common way to expose a Service. Gateway API is the newer replacement for Ingress, and I turned Traefik&amp;rsquo;s support for it on so it&amp;rsquo;s ready if I ever want to move a workload over. For now it&amp;rsquo;s just sitting there switched on and unused.&lt;/p&gt;
+&lt;p&gt;The real pattern is one dedicated subdomain per app: &lt;code&gt;app1.joeyaxtell.com&lt;/code&gt;, &lt;code&gt;pihole.joeyaxtell.com&lt;/code&gt;, &lt;code&gt;grafana.joeyaxtell.com&lt;/code&gt;, &lt;code&gt;argocd.joeyaxtell.com&lt;/code&gt;, and so on, each with an Ingress that references the same TLS ClusterIssuer from &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;the last post&lt;/a&gt;. Traefik terminates TLS, matches the &lt;code&gt;Host()&lt;/code&gt; rule, and forwards to the matching in-cluster Service.&lt;/p&gt;
+&lt;h2 id="dns-pi-hole-as-the-front-door-for-hostnames"&gt;DNS: Pi-hole as the front door for hostnames
+&lt;/h2&gt;&lt;p&gt;With Pi-hole holding a fixed LAN address and handling DNS for the whole network, every one of those &lt;code&gt;*.joeyaxtell.com&lt;/code&gt; hostnames just needs a local DNS entry pointing back at Traefik&amp;rsquo;s address. That&amp;rsquo;s what makes &amp;ldquo;internal-only, real TLS cert, friendly hostname&amp;rdquo; work together: Pi-hole resolves the name, Traefik terminates the certificate and routes by host header, and from a browser&amp;rsquo;s perspective it looks exactly like a normal public site.&lt;/p&gt;
+&lt;p&gt;Pi-hole is also the clearest example of the Sealed Secrets pattern from the last post in practice — its upstream resolvers and web admin password are stored as an encrypted &lt;code&gt;SealedSecret&lt;/code&gt; and pulled in with &lt;code&gt;envFrom.secretRef&lt;/code&gt;, instead of sitting in the deployment manifest as plain text.&lt;/p&gt;
+&lt;h2 id="whats-deliberately-not-here"&gt;What&amp;rsquo;s deliberately not here
+&lt;/h2&gt;&lt;p&gt;No service mesh, no Tailscale or WireGuard overlay. Everything described here is LAN-only, reachable because Pi-hole resolves the hostname and MetalLB/Traefik own the routing. A few workloads in my media namespace have their own networking requirements beyond this, but I&amp;rsquo;m leaving those out since they&amp;rsquo;re app-specific rather than cluster networking concerns.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;Traffic can reach a pod now. Next up: what happens to the data once it gets there — the two storage tiers I ended up running side by side, and why.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Configuring the Cluster: TLS, Secrets, and Learning to Not Lose a Node</title><link>https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/</link><pubDate>Fri, 31 Jul 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;strong&gt;3. Configuration&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;&lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;Last time&lt;/a&gt; I had three MicroK8s nodes joined into a cluster. That&amp;rsquo;s a cluster you can &lt;code&gt;kubectl get nodes&lt;/code&gt; against, but it&amp;rsquo;s not yet a cluster you&amp;rsquo;d trust with anything real. This post covers the configuration work that closed that gap: certificates, secrets, and a couple of lessons I learned the hard way about how the cluster behaves when a node actually dies.&lt;/p&gt;
+&lt;h2 id="tls-real-certificates-for-an-internal-only-cluster"&gt;TLS: real certificates for an internal-only cluster
+&lt;/h2&gt;&lt;p&gt;Every host I run is a subdomain of &lt;code&gt;joeyaxtell.com&lt;/code&gt;, but none of them are reachable from the public internet — they all resolve to addresses inside my LAN. That rules out the usual HTTP-01 ACME challenge, which needs Let&amp;rsquo;s Encrypt to reach your server directly. The fix is a &lt;strong&gt;DNS-01 challenge through Cloudflare&lt;/strong&gt;, which proves domain ownership by writing a TXT record instead of serving an HTTP response:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt; 1
+&lt;/span&gt;&lt;span class="lnt"&gt; 2
+&lt;/span&gt;&lt;span class="lnt"&gt; 3
+&lt;/span&gt;&lt;span class="lnt"&gt; 4
+&lt;/span&gt;&lt;span class="lnt"&gt; 5
+&lt;/span&gt;&lt;span class="lnt"&gt; 6
+&lt;/span&gt;&lt;span class="lnt"&gt; 7
+&lt;/span&gt;&lt;span class="lnt"&gt; 8
+&lt;/span&gt;&lt;span class="lnt"&gt; 9
+&lt;/span&gt;&lt;span class="lnt"&gt;10
+&lt;/span&gt;&lt;span class="lnt"&gt;11
+&lt;/span&gt;&lt;span class="lnt"&gt;12
+&lt;/span&gt;&lt;span class="lnt"&gt;13
+&lt;/span&gt;&lt;span class="lnt"&gt;14
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;cert-manager.io/v1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ClusterIssuer&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;letsencrypt-cloudflare&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;acme&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;server&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://acme-v02.api.letsencrypt.org/directory&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;email&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;YOUR_EMAIL@EXAMPLE.COM&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;solvers&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;dns01&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;cloudflare&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;apiTokenSecretRef&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;cloudflare-api-token&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;key&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;api-token&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s the &lt;strong&gt;production&lt;/strong&gt; ACME endpoint, not staging. I went straight for real certificates on the first ClusterIssuer I ever wrote, which was a little bold in hindsight — Let&amp;rsquo;s Encrypt&amp;rsquo;s production rate limits aren&amp;rsquo;t generous if you get the config wrong and end up retrying in a loop. It worked out, but staging first is the safer habit.&lt;/p&gt;
+&lt;p&gt;I proved it worked the same way I proved everything else in this series: a disposable &lt;code&gt;nginx&lt;/code&gt; pod at &lt;code&gt;test.joeyaxtell.com&lt;/code&gt;, watched until a real certificate showed up in its Secret, then deleted.&lt;/p&gt;
+&lt;h2 id="secrets-three-stages-and-only-the-first-one-is-embarrassing"&gt;Secrets: three stages, and only the first one is embarrassing
+&lt;/h2&gt;&lt;p&gt;My secrets story is basically a timeline of learning why each previous approach doesn&amp;rsquo;t scale.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Stage 1 — plaintext templates committed to git.&lt;/strong&gt; The Cloudflare API token secret started life as a literal &lt;code&gt;kind: Secret&lt;/code&gt; manifest with &lt;code&gt;api-token: YOUR_CLOUDFLARE_API_TOKEN&lt;/code&gt; committed to the repo, meant to be hand-edited locally before applying. Never a real credential in git, but also not a pattern I&amp;rsquo;d want to repeat as the number of secrets grew.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Stage 2 — imperative, out-of-band &lt;code&gt;kubectl create secret&lt;/code&gt;.&lt;/strong&gt; For a while, secrets simply didn&amp;rsquo;t exist in the repo at all, just a comment documenting the &lt;code&gt;kubectl create secret generic ... --from-literal=...&lt;/code&gt; command I&amp;rsquo;d run once by hand and never again. It works, but it means the repo doesn&amp;rsquo;t actually describe the cluster. There&amp;rsquo;s a whole category of state that only exists in my shell history.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Stage 3 — Sealed Secrets.&lt;/strong&gt; This is where I landed, and where new secrets go today. The &lt;a class="link" href="https://github.com/bitnami-labs/sealed-secrets" target="_blank" rel="noopener"
+&gt;Bitnami Sealed Secrets&lt;/a&gt; controller lets you encrypt a Secret client-side with its public key, commit the encrypted &lt;code&gt;SealedSecret&lt;/code&gt; to git, and only the controller running in-cluster can decrypt it back into a real Secret. The workflow, including the PowerShell-specific piping since I do this from Windows:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kubeseal --fetch-cert --controller-namespace default --controller-name sealed-secrets-controller &amp;gt; cert.pem
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Get-Content secret.yaml | kubeseal --cert cert.pem -o yaml &amp;gt; sealedsecret.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That finally makes both a secret&amp;rsquo;s existence and its encrypted value visible in git history, without the value ever being recoverable by anyone who doesn&amp;rsquo;t hold the cluster&amp;rsquo;s private key. It&amp;rsquo;s not applied everywhere yet — that migration is still going workload by workload — but it&amp;rsquo;s the pattern I reach for now.&lt;/p&gt;
+&lt;h2 id="update-tracking-an-opt-in-watcher"&gt;Update tracking: an opt-in watcher
+&lt;/h2&gt;&lt;p&gt;Rather than a blanket &amp;ldquo;check everything for updates&amp;rdquo; policy, I run &lt;a class="link" href="https://github.com/crazymax/diun" target="_blank" rel="noopener"
+&gt;Diun&lt;/a&gt; with Kubernetes provider support enabled, watching every six hours. Workloads opt in individually by adding one annotation to their pod template:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;annotations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;diun.enable&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;true&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That opt-in model matters. I want to know when something has a new image available, but I don&amp;rsquo;t want that noise on things I&amp;rsquo;ve deliberately pinned. When I locked one workload to a specific version and set &lt;code&gt;imagePullPolicy: IfNotPresent&lt;/code&gt; so it would stop drifting, the next thing I did was pull the &lt;code&gt;diun.enable&lt;/code&gt; annotation back off it. No point getting paged about updates I&amp;rsquo;ve already decided not to take.&lt;/p&gt;
+&lt;h2 id="configuring-for-node-failure"&gt;Configuring for node failure
+&lt;/h2&gt;&lt;p&gt;The most useful configuration change I made didn&amp;rsquo;t happen until months in, after I actually lost a node and watched what happened: nothing, for a long time. Kubernetes&amp;rsquo; default tolerance for an unreachable node is generous — pods on a node that goes &lt;code&gt;NotReady&lt;/code&gt; or &lt;code&gt;Unreachable&lt;/code&gt; aren&amp;rsquo;t rescheduled for &lt;strong&gt;five minutes&lt;/strong&gt; by default. On a three-node homelab cluster, five minutes of a chunk of your services being down because one box hiccuped is a bad trade.&lt;/p&gt;
+&lt;p&gt;The fix, applied across every deployment in one pass once I understood the knob:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;span class="lnt"&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;tolerations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;key&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;node.kubernetes.io/not-ready&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;operator&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;Exists&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;effect&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;NoExecute&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;tolerationSeconds&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;30&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;key&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;node.kubernetes.io/unreachable&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;operator&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;Exists&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;effect&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;NoExecute&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;tolerationSeconds&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;30&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That cuts the eviction wait from five minutes to thirty seconds. I paired it with &lt;code&gt;strategy: Recreate&lt;/code&gt; on the same deployments, since my persistent volumes are &lt;code&gt;ReadWriteOnce&lt;/code&gt; and a rolling update trying to attach the same volume to a second pod before the first releases it just hangs. &lt;code&gt;Recreate&lt;/code&gt; tears the old pod down before standing the new one up. It&amp;rsquo;s slower for a routine deploy, but it&amp;rsquo;s the only strategy that actually works with single-writer storage.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;With TLS, secrets, and failure handling in place, the next post covers how traffic actually gets from my LAN to a pod — Traefik, MetalLB, and DNS.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Installing Kubernetes: Picking MicroK8s for the Homelab</title><link>https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/</link><pubDate>Tue, 28 Jul 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;strong&gt;2. Installation&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;In &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;part one&lt;/a&gt; I explained why I was moving off a single Docker Compose box and onto Kubernetes. This post covers the actual install: what I picked, what I built it on, and the small role Ansible played.&lt;/p&gt;
+&lt;h2 id="picking-a-distribution"&gt;Picking a distribution
+&lt;/h2&gt;&lt;p&gt;I didn&amp;rsquo;t want to hand-roll &lt;code&gt;kubeadm&lt;/code&gt; for my first real cluster, and I wasn&amp;rsquo;t ready to fight with Talos&amp;rsquo;s immutable, API-only model on day one either. I landed on &lt;strong&gt;MicroK8s&lt;/strong&gt;. It&amp;rsquo;s a single-snap install, it ships HA out of the box once you have three or more nodes, and the addon ecosystem (&lt;code&gt;microk8s enable &amp;lt;thing&amp;gt;&lt;/code&gt;) let me turn on pieces of the platform — DNS, storage, observability — without writing them myself while I was still learning what each one did.&lt;/p&gt;
+&lt;p&gt;There&amp;rsquo;s a real trade-off there. Addons are convenient, but they&amp;rsquo;re also opaque. A chunk of what&amp;rsquo;s running in my cluster today, Longhorn and the observability stack included, was never &lt;code&gt;kubectl apply&lt;/code&gt;&amp;rsquo;d from a manifest I own — it just appeared because I typed &lt;code&gt;microk8s enable observability&lt;/code&gt; one night. That gap shows up again in the &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;storage&lt;/a&gt; and &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;GitOps&lt;/a&gt; posts: anything installed by an addon doesn&amp;rsquo;t have a home in git, so my repo only holds the edges of those systems (an Ingress here, a ClusterIssuer there), not the whole install.&lt;/p&gt;
+&lt;h2 id="the-hardware"&gt;The hardware
+&lt;/h2&gt;&lt;p&gt;Three nodes, no dedicated control-plane/worker split:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[k8s_nodes]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;k8-node1.thos.local
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;k8-node2.thos.local
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;k8-node3.thos.local
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;MicroK8s&amp;rsquo;s HA mode makes all three control-plane and worker at once, so as long as two of three are up, the cluster keeps quorum and keeps scheduling. That was the whole point: no more &amp;ldquo;the one server&amp;rsquo;s down and everything&amp;rsquo;s down.&amp;rdquo;&lt;/p&gt;
+&lt;h2 id="ansible-showed-up-late-and-only-for-two-things"&gt;Ansible showed up late, and only for two things
+&lt;/h2&gt;&lt;p&gt;If you&amp;rsquo;re picturing an Ansible playbook that bootstraps MicroK8s from bare metal, that&amp;rsquo;s not what happened. The cluster was already running real workloads before Ansible ever entered the picture. When it finally showed up, it did exactly two things.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;k8_setup.yml&lt;/code&gt;&lt;/strong&gt; installs host prerequisites, and it&amp;rsquo;s shorter than you&amp;rsquo;d expect:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;span class="lnt"&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- &lt;span class="nt"&gt;hosts&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;k8s_nodes&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;become&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;yes&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;tasks&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Install open-iscsi and nfs-common&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;apt&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="l"&gt;open-iscsi&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="l"&gt;nfs-common&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;state&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;present&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Those two packages exist for one reason: they&amp;rsquo;re what Longhorn and NFS-backed volumes need on the host to attach storage. This playbook is a storage prerequisite, not a cluster bootstrap.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;updates.yml&lt;/code&gt;&lt;/strong&gt; is even simpler — &lt;code&gt;apt update &amp;amp;&amp;amp; apt upgrade&lt;/code&gt; across all three nodes, added about a month later once I got tired of patching each box by hand over SSH.&lt;/p&gt;
+&lt;p&gt;Everything else — MicroK8s itself, the addons, the Helm installs — was done by hand, one node and one terminal at a time. My &amp;ldquo;automation&amp;rdquo; story started small and grew later; it didn&amp;rsquo;t arrive fully formed.&lt;/p&gt;
+&lt;h2 id="prove-it-before-you-build-on-it"&gt;Prove it before you build on it
+&lt;/h2&gt;&lt;p&gt;A pattern shows up over and over in my early commits: stand up a piece of infrastructure, then immediately deploy something disposable to prove it works before trusting real workloads to it. The first thing I put behind Traefik wasn&amp;rsquo;t a real app — it was three &lt;code&gt;hashicorp/http-echo&lt;/code&gt; containers, just to confirm host-based routing worked. Cert-manager got the same treatment: an &lt;code&gt;nginx&lt;/code&gt; pod at &lt;code&gt;test.joeyaxtell.com&lt;/code&gt; existed for one reason, to watch a real certificate get issued before I pointed anything real at the ClusterIssuer.&lt;/p&gt;
+&lt;p&gt;It&amp;rsquo;s a small habit, but it saved me a lot of debugging-two-things-at-once later. More on both of those in the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration&lt;/a&gt; and &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;networking&lt;/a&gt; posts.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;With three nodes joined and quorum established, the next step was making the cluster trustworthy enough to run things on — TLS, secrets, and the conventions I settled on for every workload going forward.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt;&lt;/p&gt;</description></item><item><title>Archives</title><link>https://www.joeyaxtell.com/archives/</link><pubDate>Sun, 06 Mar 2022 00:00:00 +0000</pubDate><guid>https://www.joeyaxtell.com/archives/</guid><description/></item><item><title>Links</title><link>https://www.joeyaxtell.com/links/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://www.joeyaxtell.com/links/</guid><description>&lt;p&gt;To use this feature, add &lt;code&gt;links&lt;/code&gt; section to frontmatter.&lt;/p&gt;
+&lt;p&gt;This page&amp;rsquo;s frontmatter:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;span class="lnt"&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;links&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;title&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;GitHub&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;description&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;GitHub is the world&amp;#39;s largest software development platform.&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;website&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://github.com&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;image&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;title&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;TypeScript&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;description&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;TypeScript is a typed superset of JavaScript that compiles to plain JavaScript.&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;website&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://www.typescriptlang.org&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;image&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ts-logo-128.jpg&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;code&gt;image&lt;/code&gt; field accepts both local and external images.&lt;/p&gt;</description></item><item><title>Search</title><link>https://www.joeyaxtell.com/search/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://www.joeyaxtell.com/search/</guid><description/></item></channel></rss>

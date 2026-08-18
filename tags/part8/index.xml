@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Part8 on Joey's Site</title><link>https://www.joeyaxtell.com/tags/part8/</link><description>Recent content in Part8 on Joey's Site</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sun, 16 Aug 2026 09:00:00 -0600</lastBuildDate><atom:link href="https://www.joeyaxtell.com/tags/part8/index.xml" rel="self" type="application/rss+xml"/><item><title>GitOps in Practice: What's Actually Automated, and What's Still Manual</title><link>https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/</link><pubDate>Sun, 16 Aug 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;2. Installation&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;strong&gt;8. GitOps&lt;/strong&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;&lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;Last post&lt;/a&gt; covered getting ArgoCD installed, including a rendering bug that quietly left some Applications running outside GitOps entirely. To close out the series, here&amp;rsquo;s a snapshot of what GitOps actually looks like day to day in this homelab right now, not the aspirational version, the real one.&lt;/p&gt;
+&lt;h2 id="whats-genuinely-under-gitops-today"&gt;What&amp;rsquo;s genuinely under GitOps today
+&lt;/h2&gt;&lt;p&gt;Auto-sync is on everywhere, with both &lt;code&gt;prune&lt;/code&gt; and &lt;code&gt;selfHeal&lt;/code&gt; enabled on every Application, no exceptions. In practice that means: edit a manifest in git, push, and within a few minutes the cluster matches. Delete a resource from git, and ArgoCD removes it from the cluster. Edit something in the cluster directly instead of in git, and ArgoCD quietly reverts it back to match git on the next reconciliation loop. That last one took some getting used to. The first time I &lt;code&gt;kubectl edit&lt;/code&gt;&amp;rsquo;d something to test a quick change and watched ArgoCD undo it thirty seconds later, it was a good reminder of what &amp;ldquo;git is the source of truth&amp;rdquo; actually means in practice, not just in theory.&lt;/p&gt;
+&lt;p&gt;Coverage today is honest but incomplete: the workloads reachable from git are the media namespace apps and a handful of others, real, working, auto-syncing. The &lt;strong&gt;platform layer isn&amp;rsquo;t there yet&lt;/strong&gt; — cert-manager, Traefik, Longhorn, and the observability stack are all still installed and managed the way they were in the &lt;a class="link" href="https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/" &gt;installation&lt;/a&gt; and &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration&lt;/a&gt; posts: by hand, outside git. GitOps started with the easiest, most repetitive layer first and hasn&amp;rsquo;t gotten down to the foundation yet. That&amp;rsquo;s next.&lt;/p&gt;
+&lt;h2 id="sealed-secrets-running-for-real"&gt;Sealed Secrets, running for real
+&lt;/h2&gt;&lt;p&gt;Unlike the ArgoCD image updater below, this one&amp;rsquo;s live: the Sealed Secrets controller itself is deployed as an ArgoCD Application, sourced straight from its upstream Helm repo rather than my own git repo:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;source&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;repoURL&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;https://bitnami-labs.github.io/sealed-secrets&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;chart&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;sealed-secrets&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;targetRevision&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="m"&gt;2.18.3&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;That&amp;rsquo;s the same controller powering the encrypted-secret workflow from the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration post&lt;/a&gt;, and it&amp;rsquo;s a good example of ArgoCD managing infrastructure that isn&amp;rsquo;t my own code at all, just a chart I depend on.&lt;/p&gt;
+&lt;h2 id="what-i-tried-and-walked-back-per-project-isolation"&gt;What I tried and walked back: per-project isolation
+&lt;/h2&gt;&lt;p&gt;Early on I wanted ArgoCD&amp;rsquo;s AppProject concept to segment my workloads: media apps in one project, platform in another, each with its own repo and resource restrictions. I wrote the AppProject, and then wrote the honest verdict directly into the file when I hit the wall:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# This doesn&amp;#39;t work currently. You can only tie 1 repo to 1 project.&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="c"&gt;# If I had my deployments in separate repos, then I&amp;#39;d create new projects for each.&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;All of my workload manifests live in one repo, so a project boundary drawn around &amp;ldquo;one repo&amp;rdquo; doesn&amp;rsquo;t actually separate anything. That AppProject was never applied — every Application in the cluster still runs under the &lt;code&gt;default&lt;/code&gt; project. Splitting workloads into separate repos per concern is the real fix, and it&amp;rsquo;s a bigger reorganization than I&amp;rsquo;ve wanted to take on yet. I&amp;rsquo;m leaving the dead end in here because &amp;ldquo;I tried this and the docs made it sound simpler than it turned out to be&amp;rdquo; is worth writing down, rather than pretending the idea worked the first time.&lt;/p&gt;
+&lt;h2 id="whats-built-but-not-live-image-automation"&gt;What&amp;rsquo;s built but not live: image automation
+&lt;/h2&gt;&lt;p&gt;I added the ArgoCD Image Updater&amp;rsquo;s Application manifest and annotated one workload (Pi-hole, using its &lt;code&gt;yyyy.mm.x&lt;/code&gt; version scheme) to be managed by it:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;annotations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/image-list&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;pihole=pihole/pihole&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/pihole.update-strategy&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;latest&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/pihole.allow-tags&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;regexp:^\d{4}\.\d{2}\.\d+$&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd-image-updater.argoproj.io/write-back-method&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;git&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;&lt;code&gt;write-back-method: git&lt;/code&gt; is the part I like most about the design. Instead of silently mutating the live Deployment, the updater would commit the new image tag back to git itself, so even automated version bumps stay visible in commit history. The catch: the Image Updater&amp;rsquo;s own Application never actually got deployed, so none of this is running yet. The annotations are sitting there, correctly configured, waiting for their controller to exist. It&amp;rsquo;s on the same list as the app-of-apps fix from the last post.&lt;/p&gt;
+&lt;h2 id="the-gotcha-thats-still-live-a-valuesyaml-nobody-reads"&gt;The gotcha that&amp;rsquo;s still live: a values.yaml nobody reads
+&lt;/h2&gt;&lt;p&gt;This is the one I want to flag clearest, because unlike the others it&amp;rsquo;s a silent landmine rather than an inert feature. ArgoCD&amp;rsquo;s own Helm install has a &lt;code&gt;values.yaml&lt;/code&gt; sitting at my repo root, with two settings I actually care about:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;configs&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;params&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;server.insecure&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;true&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;cm&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;accounts.admin&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;apiKey,login&amp;#34;&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;But the Application that installs ArgoCD points at &lt;code&gt;charts/argo-cd&lt;/code&gt;, and that directory has no &lt;code&gt;values.yaml&lt;/code&gt; of its own. My root-level file is never read by ArgoCD at all. It&amp;rsquo;s a leftover from the very first &lt;code&gt;helm install -f values.yaml&lt;/code&gt; I ran by hand, before ArgoCD was managing itself.&lt;/p&gt;
+&lt;p&gt;Right now those two settings are still active in the cluster, purely because ArgoCD&amp;rsquo;s reconciliation merges into the existing ConfigMaps rather than replacing them wholesale. The values survive as leftover keys Helm&amp;rsquo;s chart defaults don&amp;rsquo;t know to remove. But that&amp;rsquo;s fragile: if either ConfigMap ever gets deleted and recreated from scratch, both settings silently revert to upstream defaults. &lt;code&gt;server.insecure&lt;/code&gt; reverting to &lt;code&gt;false&lt;/code&gt; would be the visible one — my Traefik route talks plain HTTP to ArgoCD&amp;rsquo;s server on the assumption that TLS is terminated upstream, so a default-secure ArgoCD would break the UI behind its own working certificate. The fix is simple: move the file into &lt;code&gt;charts/argo-cd/values.yaml&lt;/code&gt; where the Application actually looks for it. That&amp;rsquo;s genuinely the next thing I&amp;rsquo;m doing after publishing this post.&lt;/p&gt;
+&lt;h2 id="where-this-goes-next"&gt;Where this goes next
+&lt;/h2&gt;&lt;p&gt;Looking at everything laid out across these gotchas, the real GitOps roadmap for this homelab is:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Fix the app-of-apps rendering bug so every Application actually lives under &lt;code&gt;templates/&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Move ArgoCD&amp;rsquo;s &lt;code&gt;values.yaml&lt;/code&gt; to where its own Application will actually read it.&lt;/li&gt;
+&lt;li&gt;Split workloads into separate repos (or at least separate paths with real project boundaries) so AppProjects can do something useful.&lt;/li&gt;
+&lt;li&gt;Deploy the Image Updater for real, now that the annotations are already sitting there configured.&lt;/li&gt;
+&lt;li&gt;Bring the platform layer — cert-manager, Traefik, Longhorn, observability — into git the same way the workloads already are.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;None of that is a rewrite. It&amp;rsquo;s closing gaps I only found by actually running this for months and watching where reality quietly diverged from what the repo said it should be. That, in hindsight, was the actual point of this series: not a perfect homelab, but what building one for real, mistakes included, actually looks like.&lt;/p&gt;
+&lt;p&gt;Thanks for following along.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt;&lt;/p&gt;</description></item></channel></rss>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Part2 on Joey's Site</title><link>https://www.joeyaxtell.com/tags/part2/</link><description>Recent content in Part2 on Joey's Site</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 28 Jul 2026 09:00:00 -0600</lastBuildDate><atom:link href="https://www.joeyaxtell.com/tags/part2/index.xml" rel="self" type="application/rss+xml"/><item><title>Installing Kubernetes: Picking MicroK8s for the Homelab</title><link>https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/</link><pubDate>Tue, 28 Jul 2026 09:00:00 -0600</pubDate><guid>https://www.joeyaxtell.com/p/installing-kubernetes-picking-microk8s-for-the-homelab/</guid><description>&lt;p&gt;&lt;strong&gt;Homelab Kubernetes Series:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; · &lt;strong&gt;2. Installation&lt;/strong&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;4. Networking&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;5. Storage&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/running-workloads-from-compose-files-to-kubernetes-manifests/" &gt;6. Workloads&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/moving-to-argocd-an-app-of-apps-and-the-bug-that-taught-me-how-helm-rendering-works/" &gt;7. ArgoCD&lt;/a&gt; · &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;8. GitOps&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id="recap"&gt;Recap
+&lt;/h2&gt;&lt;p&gt;In &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;part one&lt;/a&gt; I explained why I was moving off a single Docker Compose box and onto Kubernetes. This post covers the actual install: what I picked, what I built it on, and the small role Ansible played.&lt;/p&gt;
+&lt;h2 id="picking-a-distribution"&gt;Picking a distribution
+&lt;/h2&gt;&lt;p&gt;I didn&amp;rsquo;t want to hand-roll &lt;code&gt;kubeadm&lt;/code&gt; for my first real cluster, and I wasn&amp;rsquo;t ready to fight with Talos&amp;rsquo;s immutable, API-only model on day one either. I landed on &lt;strong&gt;MicroK8s&lt;/strong&gt;. It&amp;rsquo;s a single-snap install, it ships HA out of the box once you have three or more nodes, and the addon ecosystem (&lt;code&gt;microk8s enable &amp;lt;thing&amp;gt;&lt;/code&gt;) let me turn on pieces of the platform — DNS, storage, observability — without writing them myself while I was still learning what each one did.&lt;/p&gt;
+&lt;p&gt;There&amp;rsquo;s a real trade-off there. Addons are convenient, but they&amp;rsquo;re also opaque. A chunk of what&amp;rsquo;s running in my cluster today, Longhorn and the observability stack included, was never &lt;code&gt;kubectl apply&lt;/code&gt;&amp;rsquo;d from a manifest I own — it just appeared because I typed &lt;code&gt;microk8s enable observability&lt;/code&gt; one night. That gap shows up again in the &lt;a class="link" href="https://www.joeyaxtell.com/p/storage-in-the-homelab-nfs-for-bulk-longhorn-for-anything-with-a-database/" &gt;storage&lt;/a&gt; and &lt;a class="link" href="https://www.joeyaxtell.com/p/gitops-in-practice-whats-actually-automated-and-whats-still-manual/" &gt;GitOps&lt;/a&gt; posts: anything installed by an addon doesn&amp;rsquo;t have a home in git, so my repo only holds the edges of those systems (an Ingress here, a ClusterIssuer there), not the whole install.&lt;/p&gt;
+&lt;h2 id="the-hardware"&gt;The hardware
+&lt;/h2&gt;&lt;p&gt;Three nodes, no dedicated control-plane/worker split:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-fallback" data-lang="fallback"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;[k8s_nodes]
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;k8-node1.thos.local
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;k8-node2.thos.local
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;k8-node3.thos.local
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;MicroK8s&amp;rsquo;s HA mode makes all three control-plane and worker at once, so as long as two of three are up, the cluster keeps quorum and keeps scheduling. That was the whole point: no more &amp;ldquo;the one server&amp;rsquo;s down and everything&amp;rsquo;s down.&amp;rdquo;&lt;/p&gt;
+&lt;h2 id="ansible-showed-up-late-and-only-for-two-things"&gt;Ansible showed up late, and only for two things
+&lt;/h2&gt;&lt;p&gt;If you&amp;rsquo;re picturing an Ansible playbook that bootstraps MicroK8s from bare metal, that&amp;rsquo;s not what happened. The cluster was already running real workloads before Ansible ever entered the picture. When it finally showed up, it did exactly two things.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;k8_setup.yml&lt;/code&gt;&lt;/strong&gt; installs host prerequisites, and it&amp;rsquo;s shorter than you&amp;rsquo;d expect:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;div class="chroma"&gt;
+&lt;table class="lntable"&gt;&lt;tr&gt;&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code&gt;&lt;span class="lnt"&gt;1
+&lt;/span&gt;&lt;span class="lnt"&gt;2
+&lt;/span&gt;&lt;span class="lnt"&gt;3
+&lt;/span&gt;&lt;span class="lnt"&gt;4
+&lt;/span&gt;&lt;span class="lnt"&gt;5
+&lt;/span&gt;&lt;span class="lnt"&gt;6
+&lt;/span&gt;&lt;span class="lnt"&gt;7
+&lt;/span&gt;&lt;span class="lnt"&gt;8
+&lt;/span&gt;&lt;span class="lnt"&gt;9
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;td class="lntd"&gt;
+&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- &lt;span class="nt"&gt;hosts&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;k8s_nodes&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;become&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;yes&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;tasks&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Install open-iscsi and nfs-common&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;apt&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="l"&gt;open-iscsi&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="l"&gt;nfs-common&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;state&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;present&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/div&gt;
+&lt;/div&gt;&lt;p&gt;Those two packages exist for one reason: they&amp;rsquo;re what Longhorn and NFS-backed volumes need on the host to attach storage. This playbook is a storage prerequisite, not a cluster bootstrap.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;updates.yml&lt;/code&gt;&lt;/strong&gt; is even simpler — &lt;code&gt;apt update &amp;amp;&amp;amp; apt upgrade&lt;/code&gt; across all three nodes, added about a month later once I got tired of patching each box by hand over SSH.&lt;/p&gt;
+&lt;p&gt;Everything else — MicroK8s itself, the addons, the Helm installs — was done by hand, one node and one terminal at a time. My &amp;ldquo;automation&amp;rdquo; story started small and grew later; it didn&amp;rsquo;t arrive fully formed.&lt;/p&gt;
+&lt;h2 id="prove-it-before-you-build-on-it"&gt;Prove it before you build on it
+&lt;/h2&gt;&lt;p&gt;A pattern shows up over and over in my early commits: stand up a piece of infrastructure, then immediately deploy something disposable to prove it works before trusting real workloads to it. The first thing I put behind Traefik wasn&amp;rsquo;t a real app — it was three &lt;code&gt;hashicorp/http-echo&lt;/code&gt; containers, just to confirm host-based routing worked. Cert-manager got the same treatment: an &lt;code&gt;nginx&lt;/code&gt; pod at &lt;code&gt;test.joeyaxtell.com&lt;/code&gt; existed for one reason, to watch a real certificate get issued before I pointed anything real at the ClusterIssuer.&lt;/p&gt;
+&lt;p&gt;It&amp;rsquo;s a small habit, but it saved me a lot of debugging-two-things-at-once later. More on both of those in the &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;configuration&lt;/a&gt; and &lt;a class="link" href="https://www.joeyaxtell.com/p/kubernetes-networking-in-the-homelab-traefik-metallb-and-pi-hole/" &gt;networking&lt;/a&gt; posts.&lt;/p&gt;
+&lt;h2 id="up-next"&gt;Up next
+&lt;/h2&gt;&lt;p&gt;With three nodes joined and quorum established, the next step was making the cluster trustworthy enough to run things on — TLS, secrets, and the conventions I settled on for every workload going forward.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;◀ Previous:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/homelab-kubernetes-adventure/" &gt;1. Intro&lt;/a&gt; | &lt;strong&gt;Next ▶:&lt;/strong&gt; &lt;a class="link" href="https://www.joeyaxtell.com/p/configuring-the-cluster-tls-secrets-and-learning-to-not-lose-a-node/" &gt;3. Configuration&lt;/a&gt;&lt;/p&gt;</description></item></channel></rss>
