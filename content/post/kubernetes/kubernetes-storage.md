@@ -1,7 +1,7 @@
 ---
 title: "Storage in the Homelab: NFS for Bulk, Longhorn for Anything With a Database"
 description: "The two storage tiers I run side by side, why containers with a local database dependency had to move off NFS after fighting SQLite locking issues, and the throwaway debug pod I built to poke at block volumes."
-date: 2026-08-27T09:00:00-06:00
+date: 2026-08-06T09:00:00-06:00
 image: 
 math: 
 license: 

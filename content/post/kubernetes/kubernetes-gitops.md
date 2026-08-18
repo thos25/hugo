@@ -1,7 +1,7 @@
 ---
 title: "GitOps in Practice: What's Actually Automated, and What's Still Manual"
 description: "An honest inventory of what ArgoCD really manages today, an AppProject idea that didn't survive contact with reality, a config-drift trap in a values.yaml file, and where GitOps is headed next."
-date: 2026-09-06T09:00:00-06:00
+date: 2026-08-16T09:00:00-06:00
 image: 
 math: 
 license: 

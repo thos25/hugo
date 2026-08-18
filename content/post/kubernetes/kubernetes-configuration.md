@@ -1,7 +1,7 @@
 ---
 title: "Configuring the Cluster: TLS, Secrets, and Learning to Not Lose a Node"
 description: "Standing up cert-manager with a Cloudflare DNS-01 solver, the three-stage evolution from plaintext secrets to Sealed Secrets, and the day I stopped waiting five minutes for a failed node to give up its pods."
-date: 2026-08-21T09:00:00-06:00
+date: 2026-07-31T09:00:00-06:00
 image: 
 math: 
 license: 

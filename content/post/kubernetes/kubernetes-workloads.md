@@ -1,7 +1,7 @@
 ---
 title: "Running Workloads: From Compose Files to Kubernetes Manifests"
 description: "Converting Docker Compose stacks into Deployment/Service/Ingress manifests, the conventions I settled on, and a couple of experiments that didn't make it."
-date: 2026-08-31T09:00:00-06:00
+date: 2026-08-10T09:00:00-06:00
 image: 
 math: 
 license: 

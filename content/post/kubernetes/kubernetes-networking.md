@@ -1,7 +1,7 @@
 ---
 title: "Kubernetes Networking in the Homelab: Traefik, MetalLB, and Pi-hole"
 description: "How traffic gets from my LAN to a pod: a MetalLB address pool, Traefik as the ingress layer, and Pi-hole handling DNS for every joeyaxtell.com subdomain on the network."
-date: 2026-08-24T09:00:00-06:00
+date: 2026-08-03T09:00:00-06:00
 image: 
 math: 
 license: 

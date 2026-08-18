@@ -1,7 +1,7 @@
 ---
 title: "Installing Kubernetes: Picking MicroK8s for the Homelab"
 description: "Why I chose MicroK8s over k3s or kubeadm, the three-node cluster I built, and how Ansible only showed up after the cluster already had workloads running on it."
-date: 2026-08-18T09:00:00-06:00
+date: 2026-07-28T09:00:00-06:00
 image: 
 math: 
 license: 

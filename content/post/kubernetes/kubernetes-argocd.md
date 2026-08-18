@@ -1,7 +1,7 @@
 ---
 title: "Moving to ArgoCD: An App-of-Apps, and the Bug That Taught Me How Helm Rendering Works"
 description: "Why kubectl apply stopped being good enough, installing ArgoCD as a self-managed Helm chart, and the app-of-apps gotcha that quietly left half my Applications running outside GitOps for months."
-date: 2026-09-03T09:00:00-06:00
+date: 2026-08-13T09:00:00-06:00
 image: 
 math: 
 license: 
