@@ -2,6 +2,7 @@
 title: "Homelab Kubernetes Adventure"
 description: "My journey into Kubernetes, and container orchestration"
 date: 2026-01-07T22:09:17-06:00
+weight: 1
 image: https://www.ovhcloud.com/sites/default/files/styles/text_media_horizontal/public/2021-04/K8S-logo.png
 math: 
 license: 
