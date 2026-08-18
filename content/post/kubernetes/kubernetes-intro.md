@@ -16,6 +16,9 @@ tags:
  - Series
  - Part1
 ---
+
+**Homelab Kubernetes Series:** **1. Intro** · [2. Installation]({{< ref "kubernetes-installation" >}}) · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · [4. Networking]({{< ref "kubernetes-networking" >}}) · [5. Storage]({{< ref "kubernetes-storage" >}}) · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 # Homelab
 
 ## Intro
@@ -66,3 +69,7 @@ This solution addresses the problems I faced:
 # More to come
 
 I am going to break up this series into multiple posts so that it's easy to follow, so stay tuned for more!
+
+---
+
+**Next ▶:** [2. Installation]({{< ref "kubernetes-installation" >}})

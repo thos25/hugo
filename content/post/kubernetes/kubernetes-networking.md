@@ -17,6 +17,8 @@ tags:
  - Part4
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · [2. Installation]({{< ref "kubernetes-installation" >}}) · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · **4. Networking** · [5. Storage]({{< ref "kubernetes-storage" >}}) · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 ## Recap
 
 By [the last post]({{< ref "kubernetes-configuration" >}}) I had certificates and secrets sorted out. None of that matters if traffic can't actually reach a pod. This post is about the path a request takes from a browser on my LAN to a container running in the cluster.
@@ -86,3 +88,7 @@ No service mesh, no Tailscale or WireGuard overlay — everything described here
 ## Up next
 
 Traffic can reach a pod now. Next up: what happens to the data once it gets there — the two storage tiers I ended up running side by side, and why.
+
+---
+
+**◀ Previous:** [3. Configuration]({{< ref "kubernetes-configuration" >}})  |  **Next ▶:** [5. Storage]({{< ref "kubernetes-storage" >}})

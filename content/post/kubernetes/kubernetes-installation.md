@@ -17,6 +17,8 @@ tags:
  - Part2
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · **2. Installation** · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · [4. Networking]({{< ref "kubernetes-networking" >}}) · [5. Storage]({{< ref "kubernetes-storage" >}}) · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 ## Recap
 
 In [part one]({{< ref "kubernetes-intro" >}}) I talked about why I was moving off a single Docker Compose box and onto Kubernetes. This post covers the actual install: what I picked, what I built it on, and the (very small) role Ansible played.
@@ -73,3 +75,7 @@ It's a small habit but it saved me a lot of debugging-two-things-at-once later. 
 ## Up next
 
 With three nodes joined and quorum established, the next step was making the cluster trustworthy enough to run things on — TLS, secrets, and the conventions I settled on for every workload going forward.
+
+---
+
+**◀ Previous:** [1. Intro]({{< ref "kubernetes-intro" >}})  |  **Next ▶:** [3. Configuration]({{< ref "kubernetes-configuration" >}})

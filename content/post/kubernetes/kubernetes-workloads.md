@@ -17,6 +17,8 @@ tags:
  - Part6
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · [2. Installation]({{< ref "kubernetes-installation" >}}) · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · [4. Networking]({{< ref "kubernetes-networking" >}}) · [5. Storage]({{< ref "kubernetes-storage" >}}) · **6. Workloads** · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 ## Recap
 
 Certificates, secrets, networking, and storage are all in place after the last four posts. This one is about the actual workloads — turning what used to be Docker Compose stacks into real Kubernetes manifests, and the conventions that came out of doing that a dozen times over.
@@ -63,3 +65,7 @@ The clearest sign that this stack has moved from "getting it working" to "operat
 ## Up next
 
 Everything so far has been applied by hand — `kubectl apply -f`, one file at a time, from whichever terminal I happened to be in. The next post is about why that stopped being good enough, and moving to ArgoCD.
+
+---
+
+**◀ Previous:** [5. Storage]({{< ref "kubernetes-storage" >}})  |  **Next ▶:** [7. ArgoCD]({{< ref "kubernetes-argocd" >}})

@@ -17,6 +17,8 @@ tags:
  - Part5
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · [2. Installation]({{< ref "kubernetes-installation" >}}) · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · [4. Networking]({{< ref "kubernetes-networking" >}}) · **5. Storage** · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 ## Recap
 
 Traffic can reach a pod as of [the last post]({{< ref "kubernetes-networking" >}}). This one is about what happens after that — where the data actually lives, and why I ended up running two completely different storage systems instead of one.
@@ -106,3 +108,7 @@ Point it at whatever PVC needs inspecting, exec in or `kubectl cp` files in and 
 ## Up next
 
 With traffic routed and storage sorted, the next post covers what's actually running on top of all this — how I converted Compose stacks into Kubernetes manifests, the conventions I standardized on, and a couple of experiments that didn't survive contact with reality.
+
+---
+
+**◀ Previous:** [4. Networking]({{< ref "kubernetes-networking" >}})  |  **Next ▶:** [6. Workloads]({{< ref "kubernetes-workloads" >}})

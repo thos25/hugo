@@ -17,6 +17,8 @@ tags:
  - Part3
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · [2. Installation]({{< ref "kubernetes-installation" >}}) · **3. Configuration** · [4. Networking]({{< ref "kubernetes-networking" >}}) · [5. Storage]({{< ref "kubernetes-storage" >}}) · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 ## Recap
 
 [Last time]({{< ref "kubernetes-installation" >}}) I had three MicroK8s nodes joined into a cluster. That's a cluster you can `kubectl get nodes` against — it is not yet a cluster you'd trust with anything real. This post covers the configuration work that closed that gap: certificates, secrets, and a couple of hard-won lessons about how the cluster behaves when a node actually dies.
@@ -97,3 +99,7 @@ That cuts the eviction wait from five minutes to thirty seconds. I paired it wit
 ## Up next
 
 With TLS, secrets, and failure handling in place, the next post covers how traffic actually gets from my LAN to a pod — Traefik, MetalLB, and DNS.
+
+---
+
+**◀ Previous:** [2. Installation]({{< ref "kubernetes-installation" >}})  |  **Next ▶:** [4. Networking]({{< ref "kubernetes-networking" >}})

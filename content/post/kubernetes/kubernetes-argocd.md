@@ -17,6 +17,8 @@ tags:
  - Part7
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · [2. Installation]({{< ref "kubernetes-installation" >}}) · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · [4. Networking]({{< ref "kubernetes-networking" >}}) · [5. Storage]({{< ref "kubernetes-storage" >}}) · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · **7. ArgoCD** · [8. GitOps]({{< ref "kubernetes-gitops" >}})
+
 ## Recap
 
 Everything up through [the last post]({{< ref "kubernetes-workloads" >}}) got onto the cluster the same way: `kubectl apply -f`, from whichever terminal I happened to have open, applied in whatever order I remembered to run things. That works right up until it doesn't — I want to walk through why I moved to ArgoCD, and an honest look at a bug in my own setup that I didn't catch for months.
@@ -124,3 +126,7 @@ That label is what tells ArgoCD "treat this Secret as repository credentials" ra
 ## Up next
 
 Getting ArgoCD installed is one thing; actually leveraging it day to day is another. The next post covers what's really running through it today, what I tried and had to walk back, and where the gaps still are.
+
+---
+
+**◀ Previous:** [6. Workloads]({{< ref "kubernetes-workloads" >}})  |  **Next ▶:** [8. GitOps]({{< ref "kubernetes-gitops" >}})

@@ -17,6 +17,8 @@ tags:
  - Part8
 ---
 
+**Homelab Kubernetes Series:** [1. Intro]({{< ref "kubernetes-intro" >}}) · [2. Installation]({{< ref "kubernetes-installation" >}}) · [3. Configuration]({{< ref "kubernetes-configuration" >}}) · [4. Networking]({{< ref "kubernetes-networking" >}}) · [5. Storage]({{< ref "kubernetes-storage" >}}) · [6. Workloads]({{< ref "kubernetes-workloads" >}}) · [7. ArgoCD]({{< ref "kubernetes-argocd" >}}) · **8. GitOps**
+
 ## Recap
 
 [Last post]({{< ref "kubernetes-argocd" >}}) covered getting ArgoCD installed, including a rendering bug that quietly left some Applications running outside GitOps entirely. To close out the series, I want to give an honest snapshot of what GitOps actually looks like day to day in this homelab right now — not the aspirational version, the real one.
@@ -95,3 +97,7 @@ Looking at everything laid out across these gotchas, the real GitOps roadmap for
 None of that is a rewrite. It's closing gaps I only found by actually running this for months and watching where reality quietly diverged from what the repo said it should be — which, in hindsight, was the actual point of this whole series: not "here's a perfect homelab," but "here's what building one for real, mistakes included, actually looks like."
 
 Thanks for following along.
+
+---
+
+**◀ Previous:** [7. ArgoCD]({{< ref "kubernetes-argocd" >}})
