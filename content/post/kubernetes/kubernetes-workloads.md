@@ -43,7 +43,7 @@ Consistent UID/GID across every app made the NFS permissions story from the [sto
 
 ## What's actually running
 
-I keep a handful of apps in a dedicated media namespace that I'm not going to detail here. What they do and how they're wired up isn't the interesting part of this series, and it's not something I want to document publicly. What is relevant to a Kubernetes post: those workloads split across both storage tiers exactly like the last post described (small per-app config volumes on Longhorn, a large shared library on NFS), and one of them needs privileged networking capabilities beyond what the rest of the cluster requires — a reminder that Kubernetes can still handle non-standard networking when you actually need it.
+I keep a handful of apps in a dedicated media namespace that I'm not going to detail here. What they do and how they're wired up isn't the interesting part of this series. What is relevant to a Kubernetes post: those workloads split across both storage tiers exactly like the last post described (small per-app config volumes on Longhorn, a large shared library on NFS), and one of them needs privileged networking capabilities beyond what the rest of the cluster requires — a reminder that Kubernetes can still handle non-standard networking when you actually need it.
 
 Outside of that namespace, a few things are worth naming specifically:
 
