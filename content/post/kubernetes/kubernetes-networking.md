@@ -69,11 +69,9 @@ gateway:
         from: All
 ```
 
-Where that actually stands today: every workload in the cluster is still routed with a classic `networking.k8s.io/v1` Ingress, not a Gateway API `HTTPRoute`. Turning on the provider was me leaving a door open for later, not something I'm using yet. If you're setting this up fresh today, going straight to Gateway API is probably the better long-term bet. I just hadn't gotten there when I wrote these values.
+That Gateway API setting isn't actually doing anything yet. Every workload in the cluster still routes through a regular Kubernetes Ingress, which is the older, more common way to expose a Service. Gateway API is the newer replacement for Ingress, and I turned Traefik's support for it on so it's ready if I ever want to move a workload over. For now it's just sitting there switched on and unused.
 
-The real pattern is one dedicated subdomain per app: `sonarr.joeyaxtell.com`, `pihole.joeyaxtell.com`, `grafana.joeyaxtell.com`, `argocd.joeyaxtell.com`, and so on, each with an Ingress that references the same TLS ClusterIssuer from [the last post]({{< ref "kubernetes-configuration" >}}). Traefik terminates TLS, matches the `Host()` rule, and forwards to the matching in-cluster Service.
-
-One Ingress breaks that pattern on purpose: my Grafana Ingress runs plain HTTP with `tls: []`, since it's the observability stack's own dashboard and I haven't gotten around to giving it a certificate the way everything else has one. It's on the list.
+The real pattern is one dedicated subdomain per app: `app1.joeyaxtell.com`, `pihole.joeyaxtell.com`, `grafana.joeyaxtell.com`, `argocd.joeyaxtell.com`, and so on, each with an Ingress that references the same TLS ClusterIssuer from [the last post]({{< ref "kubernetes-configuration" >}}). Traefik terminates TLS, matches the `Host()` rule, and forwards to the matching in-cluster Service.
 
 ## DNS: Pi-hole as the front door for hostnames
 
