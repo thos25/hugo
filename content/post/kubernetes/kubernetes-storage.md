@@ -21,13 +21,13 @@ tags:
 
 ## Recap
 
-Traffic can reach a pod as of [the last post]({{< ref "kubernetes-networking" >}}). This one is about what happens after that — where the data actually lives, and why I ended up running two completely different storage systems instead of one.
+Traffic can reach a pod as of [the last post]({{< ref "kubernetes-networking" >}}). This one is about what happens after that: where the data actually lives, and why I ended up running two completely different storage systems instead of one.
 
 ## The split: NFS vs. Longhorn
 
-I run storage on two tiers, and the dividing line came down to one question: **does this workload need a single-writer block device, or can it live happily on shared network storage?**
+I run storage on two tiers, and the dividing line comes down to one question: **does this workload need a single-writer block device, or can it live happily on shared network storage?**
 
-**Tier one is NFS**, backed by a TrueNAS box on my network. I provisioned a handful of statically-defined PersistentVolumes against it — one for general app config, one for a large shared media library, and one for another large content volume — all `ReadWriteMany`, all set to `Retain` so deleting the claim never deletes the data:
+**Tier one is NFS**, backed by a TrueNAS box on my network. I provisioned a handful of statically-defined PersistentVolumes against it: one for general app config, one for a large shared media library, and one for another large content volume, all `ReadWriteMany` and all set to `Retain` so deleting the claim never deletes the data.
 
 ```yaml
 apiVersion: v1
@@ -48,7 +48,7 @@ spec:
   storageClassName: config
 ```
 
-There's no dynamic NFS provisioner in the mix, so binding a PVC to the right PV is done the old-fashioned way — label selectors:
+There's no dynamic NFS provisioner in the mix, so binding a PVC to the right PV is done the old-fashioned way, with label selectors:
 
 ```yaml
 spec:
@@ -57,17 +57,17 @@ spec:
       type: config
 ```
 
-A handful of small apps — a dashboard, a home automation platform, an update-tracking service, a DNS server — all share that single config PV, each carving out its own directory with `subPath`. It's a simple pattern and it works well for anything that just wants a folder to read and write config files from, shared across as many pods as need it.
+A handful of small apps — a dashboard, a home automation platform, an update-tracking service, a DNS server — all share that single config PV, each carving out its own directory with `subPath`. It's a simple pattern, and it works well for anything that just wants a folder to read and write config files from, shared across as many pods as need it.
 
-**Tier two is Longhorn**, MicroK8s's built-in distributed block storage addon, used for `ReadWriteOnce` volumes — anything that wants exclusive, low-latency access to its own disk. Every app in my media namespace that needs a config volume gets its own small dedicated Longhorn PVC (a few gigabytes each) rather than sharing the NFS config volume the smaller apps use.
+**Tier two is Longhorn**, MicroK8s's built-in distributed block storage addon, used for `ReadWriteOnce` volumes where something wants exclusive, low-latency access to its own disk. Every app in my media namespace that needs a config volume gets its own small dedicated Longhorn PVC (a few gigabytes each) rather than sharing the NFS config volume the smaller apps use.
 
-Longhorn itself lives entirely in the addon layer — `microk8s enable` turned it on, so the only thing I actually own in git for it is its Ingress, giving me a web UI at `longhorn.joeyaxtell.com`. That also means I don't have replica counts, backup targets, or a documented disaster-recovery story committed anywhere in the repo yet. That's an honest gap, not a secret — it's on the list.
+Longhorn itself lives entirely in the addon layer. `microk8s enable` turned it on, so the only thing I actually own in git for it is its Ingress, giving me a web UI at `longhorn.joeyaxtell.com`. That also means I don't have replica counts, backup targets, or a documented disaster-recovery story committed anywhere in the repo yet. It's a gap, and it's on the list.
 
 ## The migration that taught me the dividing line
 
-I didn't start out with a clean rule for which tier a workload belonged on — I found the rule the hard way. A handful of containers in my media namespace keep their own local state in an embedded database (SQLite, in every case that bit me). SQLite and NFS do not get along: file locking over a network filesystem is unreliable enough that those apps would intermittently stall or throw database-locked errors under normal use.
+I didn't start out with a clean rule for which tier a workload belonged on. I found the rule the hard way. A handful of containers in my media namespace keep their own local state in an embedded database, SQLite in every case that bit me. SQLite and NFS do not get along: file locking over a network filesystem is unreliable enough that those apps would intermittently stall or throw database-locked errors under normal use.
 
-The fix was a straight storage migration — move each affected app's config volume off the shared NFS PVC and onto its own dedicated Longhorn PVC instead. The difference was immediate: no more lock contention, because Longhorn gives each pod exclusive block-level access to its own volume instead of arbitrating access across the network. That's the same reasoning behind putting every media app's config volume on Longhorn in the first place — anything with a real database wants a real disk, not a network share, even if the network share is easier to set up.
+The fix was a straight storage migration: move each affected app's config volume off the shared NFS PVC and onto its own dedicated Longhorn PVC instead. The difference was immediate. No more lock contention, because Longhorn gives each pod exclusive block-level access to its own volume instead of arbitrating access across the network. That's the same reasoning behind putting every media app's config volume on Longhorn in the first place: anything with a real database wants a real disk, not a network share, even if the network share is easier to set up.
 
 The rule of thumb I use now: **bulk, shared, or read-heavy data → NFS. Anything with an embedded database or that's picky about file locking → Longhorn.**
 

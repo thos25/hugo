@@ -1,6 +1,6 @@
 ---
 title: "Moving to ArgoCD: An App-of-Apps, and the Bug That Taught Me How Helm Rendering Works"
-description: "Why kubectl apply stopped being good enough, installing ArgoCD as a self-managed Helm chart, and the app-of-apps gotcha that quietly left half my Applications running outside GitOps for months."
+description: "Why kubectl apply stopped being good enough, installing ArgoCD as a self-managed Helm chart, and an app-of-apps gotcha that quietly left half my Applications running outside GitOps for months."
 date: 2026-08-13T09:00:00-06:00
 image: 
 math: 
@@ -21,15 +21,15 @@ tags:
 
 ## Recap
 
-Everything up through [the last post]({{< ref "kubernetes-workloads" >}}) got onto the cluster the same way: `kubectl apply -f`, from whichever terminal I happened to have open, applied in whatever order I remembered to run things. That works right up until it doesn't — I want to walk through why I moved to ArgoCD, and an honest look at a bug in my own setup that I didn't catch for months.
+Everything up through [the last post]({{< ref "kubernetes-workloads" >}}) got onto the cluster the same way: `kubectl apply -f`, from whichever terminal I happened to have open, applied in whatever order I remembered to run things. That works right up until it doesn't. This post is about why I moved to ArgoCD, and a bug in my own setup that I didn't catch for months.
 
 ## Why kubectl apply stopped being enough
 
-A few things pushed me here. There was no record of what was actually deployed versus what I'd only ever run once from history. There was no reconciliation — if something drifted from the manifest (or someone, i.e. me, ran a one-off `kubectl edit`), nothing would ever notice or fix it. And there was no single place to look and answer "is the cluster in the state I think it's in." GitOps promises to fix all three: git is the source of truth, and a controller in the cluster keeps reality in sync with it.
+A few things pushed me here. There was no record of what was actually deployed versus what I'd only ever run once from history. There was no reconciliation — if something drifted from the manifest, or someone (me, running a one-off `kubectl edit`) changed it directly, nothing would ever notice or fix it. And there was no single place to look and answer "is the cluster in the state I think it's in." GitOps fixes all three: git is the source of truth, and a controller in the cluster keeps reality in sync with it.
 
 I followed [Micah Bird's homelab ArgoCD guide](https://www.micahbird.com/p/how-to-setup-argocd-the-homelab-way/) as the starting pattern, in a separate repo from the workload manifests themselves.
 
-## Installing ArgoCD — and having it manage itself
+## Installing ArgoCD, and having it manage itself
 
 ArgoCD is installed as a small Helm wrapper chart around the upstream `argo-helm` chart:
 
@@ -43,9 +43,9 @@ dependencies:
     repository: https://argoproj.github.io/argo-helm
 ```
 
-The interesting part isn't the install itself, it's what happens right after: ArgoCD manages its own upgrade going forward, as just another Application pointed at that same chart path in the same repo. Once it's up, I don't run `helm upgrade` by hand anymore — I bump the version in git and let ArgoCD reconcile itself.
+The interesting part isn't the install itself, it's what happens right after: ArgoCD manages its own upgrade going forward, as just another Application pointed at that same chart path in the same repo. Once it's up, I don't run `helm upgrade` by hand anymore. I bump the version in git and let ArgoCD reconcile itself.
 
-Ingress needed one non-obvious detail. ArgoCD's UI and CLI both talk gRPC, which doesn't play nicely with a plain HTTP-routed IngressRoute — so the route needs a second, higher-priority rule specifically for gRPC traffic, upgraded to `h2c`:
+Ingress needed one non-obvious detail. ArgoCD's UI and CLI both talk gRPC, which doesn't play nicely with a plain HTTP-routed IngressRoute, so the route needs a second, higher-priority rule specifically for gRPC traffic, upgraded to `h2c`:
 
 ```yaml
 - kind: Rule
@@ -76,7 +76,7 @@ spec:
       selfHeal: true
 ```
 
-Add a workload, add one small Application file describing where its manifests live and where it should be deployed, and ArgoCD picks it up automatically. Each one follows the same shape — point at a path in my [homelab-kubernetes]({{< ref "kubernetes-workloads" >}}) repo, sync automatically, prune anything removed, and self-heal anything that drifts:
+Add a workload, add one small Application file describing where its manifests live and where it should be deployed, and ArgoCD picks it up automatically. Each one follows the same shape: point at a path in my [homelab-kubernetes]({{< ref "kubernetes-workloads" >}}) repo, sync automatically, prune anything removed, and self-heal anything that drifts.
 
 ```yaml
 spec:
@@ -100,11 +100,11 @@ That last bit, `ignoreDifferences` on replica count, exists so that if I manuall
 
 ## The bug: not every Application file is actually an Application
 
-Here's the one I want to be honest about, because I didn't catch it for a while and I think it's a genuinely useful lesson about how Helm rendering works. My `apps/` directory is itself a Helm chart — it has a `Chart.yaml` — which means ArgoCD renders it *as* a Helm chart. And Helm has a rule I didn't fully internalize: **only files under `templates/` get rendered as manifests.** Anything sitting at the chart root is just a file Helm can reference via `.Files`, but it never gets emitted.
+Here's the one I didn't catch for a while, and I think it's a genuinely useful lesson about how Helm rendering works. My `apps/` directory is itself a Helm chart — it has a `Chart.yaml` — which means ArgoCD renders it as a Helm chart. Helm has a rule I hadn't fully internalized: **only files under `templates/` get rendered as manifests.** Anything sitting at the chart root is just a file Helm can reference via `.Files`, but it never gets emitted.
 
-I had new workload Applications sitting at the chart root instead of inside `templates/`. They were valid YAML, they were committed to git, and the root app-of-apps Application showed as `Synced` at the exact commit that added them — every signal you'd normally trust said everything was fine. But because they weren't inside `templates/`, Helm silently never rendered them, and they never became real ArgoCD Applications. The workloads they described only exist in my cluster today because I `kubectl apply`'d them by hand at some point — GitOps for those apps is, at the moment, an illusion. If I edited that file in git expecting a sync to follow, nothing would happen, because ArgoCD never rendered it as anything to sync.
+I had new workload Applications sitting at the chart root instead of inside `templates/`. They were valid YAML, they were committed to git, and the root app-of-apps Application showed as `Synced` at the exact commit that added them. Every signal you'd normally trust said everything was fine. But because they weren't inside `templates/`, Helm silently never rendered them, and they never became real ArgoCD Applications. The workloads they described only exist in my cluster today because I `kubectl apply`'d them by hand at some point. GitOps for those apps is, right now, an illusion. If I'd edited that file in git expecting a sync to follow, nothing would have happened, because ArgoCD never rendered it as anything to sync.
 
-The fix is a one-line move — `apps/pihole.yml` becomes `apps/templates/pihole.yml` — and it's on my list. I'm leaving the mistake in this post rather than quietly writing around it, because "the sync status looked healthy and I was still wrong" is exactly the kind of thing worth knowing to check for.
+The fix is a one-line move — `apps/pihole.yml` becomes `apps/templates/pihole.yml` — and it's on my list. I'm leaving the mistake in this post instead of quietly writing around it, because "the sync status looked healthy and I was still wrong" is exactly the kind of thing worth knowing to check for.
 
 ## Secrets and private repos
 
@@ -121,7 +121,7 @@ stringData:
   password: [GITHUB PAT TOKEN HERE]
 ```
 
-That label is what tells ArgoCD "treat this Secret as repository credentials" rather than just an opaque Secret sitting in the namespace. The real values are created out-of-band, the same way the Cloudflare token was in the [configuration post]({{< ref "kubernetes-configuration" >}}) — the committed file is a template, never a credential.
+That label is what tells ArgoCD to treat this Secret as repository credentials rather than just an opaque Secret sitting in the namespace. The real values are created out-of-band, the same way the Cloudflare token was in the [configuration post]({{< ref "kubernetes-configuration" >}}) — the committed file is a template, never a credential.
 
 ## Up next
 
