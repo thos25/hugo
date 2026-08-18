@@ -92,7 +92,7 @@ spec:
   volumes:
     - name: data
       persistentVolumeClaim:
-        claimName: deluge-config-pvc # change this to the PVC you want to access
+        claimName: media-config-pvc # change this to the PVC you want to access
 ```
 
 The workflow is three commands:
